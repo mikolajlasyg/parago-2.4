@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="pl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>Paragon AI</title>
+    <meta name="description" content="Skanuj paragony, analizuj wydatki i oszczędzaj na cele." />
+    <meta name="theme-color" content="#0A1410" />
+    <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Paragon AI" />
+    <style>html,body,#root{height:100%;margin:0;background:#050B08;}</style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="pa-fallback" style="display:none;position:fixed;inset:0;padding:28px;box-sizing:border-box;align-items:center;justify-content:center;text-align:center;font-family:Inter,system-ui,sans-serif;color:#EAF2ED;background:#050B08;">
+      <div style="max-width:340px">
+        <div style="font-size:40px;margin-bottom:14px">🛠️</div>
+        <div style="font-size:17px;font-weight:700;margin-bottom:8px">Aplikacja nie mogła się uruchomić</div>
+        <div id="pa-fallback-msg" style="font-size:13px;color:#9DB0A6;line-height:1.6;margin-bottom:18px"></div>
+        <button onclick="location.reload()" style="width:100%;padding:13px 0;border-radius:14px;border:none;background:linear-gradient(135deg,#2DD4A0,#1BA47D);color:#06251A;font-size:14px;font-weight:700;cursor:pointer">Odśwież</button>
+      </div>
+    </div>
+    <script>
+      (function () {
+        var err = null;
+        window.addEventListener("error", function (e) { err = (e && e.message) || "błąd skryptu"; });
+        function showFallback() {
+          var root = document.getElementById("root");
+          if (root && root.children.length) return; // apka wstała — nic nie robimy
+          var box = document.getElementById("pa-fallback");
+          var msg = document.getElementById("pa-fallback-msg");
+          if (!box) return;
+          msg.textContent = err
+            ? "Szczegóły: " + err + ". Jeśli właśnie zmieniałeś zmienne środowiskowe (Supabase/Groq), sprawdź, czy adres zaczyna się od https:// i nie ma spacji — potem zrób Redeploy."
+            : "Sprawdź połączenie z internetem i odśwież stronę.";
+          box.style.display = "flex";
+        }
+        setTimeout(showFallback, 5000);
+      })();
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
