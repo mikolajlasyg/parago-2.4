@@ -581,7 +581,7 @@ POZOSTAŁE ZASADY:
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: "meta-llama/llama-4-scout-17b-16e-instruct",
+        model: "model: "qwen/qwen3.6-27b",
         temperature: 0,
         max_completion_tokens: 3000,
         response_format: { type: "json_object" },
