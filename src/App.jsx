@@ -4,8 +4,8 @@ import { createClient } from "@supabase/supabase-js";
 /* ---------- Supabase (konta + synchronizacja) ----------
    Bez skonfigurowanych zmiennych środowiskowych aplikacja działa w trybie lokalnym
    (bez logowania), dokładnie jak dotychczas. */
-const SUPA_URL = String((typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_SUPABASE_URL) || "").trim();
-const SUPA_KEY = String((typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_SUPABASE_ANON_KEY) || "").trim();
+const SUPA_URL = String((typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_SUPABASE_URL) || "https://ojmqfxkrnvdxpvnucvlk.supabase.co").trim();
+const SUPA_KEY = String((typeof import.meta !== "undefined" && import.meta.env && import.meta.env.VITE_SUPABASE_ANON_KEY) || "sb_publishable_vnaNQ6fjB18w8lKpJD5kIg_hkW4Ik9m").trim();
 let supabaseClient = null;
 try {
   if (/^https:\/\/[^\s]+$/i.test(SUPA_URL) && SUPA_KEY.length > 10) supabaseClient = createClient(SUPA_URL, SUPA_KEY);
@@ -124,10 +124,11 @@ function daysInMonth(mk) { const [y, m] = mk.split("-").map(Number); return new 
 
 /* ---------- tokeny ---------- */
 const T = {
-  bg: "#0A1410", glass: "rgba(255,255,255,0.045)", glassBorder: "rgba(255,255,255,0.08)",
-  glassBorderSoft: "rgba(255,255,255,0.055)", mint: "#2DD4A0", mintDeep: "#16916B",
+  bg: "var(--c-bg)", glass: "var(--c-glass)", glassBorder: "var(--c-glassBorder)",
+  glassBorderSoft: "var(--c-glassBorderSoft)", mint: "#2DD4A0", mintDeep: "#16916B",
   gold: "#D8B878", paper: "#FAF7F0", paperInk: "#1C2620", paperSub: "#8A938C",
-  text: "#EDF3EF", sub: "#93A69C", faint: "#5E7268", danger: "#E6766D", warn: "#E5C46B",
+  text: "var(--c-text)", sub: "var(--c-sub)", faint: "var(--c-faint)", danger: "#E6766D", warn: "#E5C46B",
+  surface: "var(--c-surface)",
   easeOut: "cubic-bezier(0.23, 1, 0.32, 1)",
 };
 const TIER_BADGE = {
@@ -143,7 +144,7 @@ const BUDGET_CATS = ["nabial", "mieso", "jedzenie_inne", "chemia", "kosmetyki", 
 function demoReceipts() {
   const dayOffset = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
   const R = (date, store, items) => ({
-    id: uid(), store, date,
+    id: uid(), store, date, sample: true, // dane pokazowe — nie liczą się do osiągnięć
     items: items.map(([name, total_price, category, qty = 1]) => ({ id: uid(), name, qty, total_price, category })),
     total: Math.round(items.reduce((s, i) => s + i[1], 0) * 100) / 100, createdAt: Date.now(),
   });
@@ -381,6 +382,41 @@ const ACH_TIERS = {
   gold: { name: "Złoto", color: "#D8B878" },
   legend: { name: "Legenda", color: "#A189DB" },
 };
+/* ---------- seria dni: progi i korzyści ---------- */
+const STREAK_TIERS = [
+  { d: 0,   name: "Rozgrzewka", emoji: "·",   mult: 1,   c: "#5E7268" },
+  { d: 3,   name: "Iskra",      emoji: "✨",  mult: 1.2, c: "#E5C46B" },
+  { d: 7,   name: "Płomień",    emoji: "🔥",  mult: 1.5, c: "#F2A65A" },
+  { d: 14,  name: "Ognisko",    emoji: "🔥",  mult: 1.8, c: "#EE8B4F" },
+  { d: 30,  name: "Pożar",      emoji: "🌋",  mult: 2.2, c: "#E6766D" },
+  { d: 60,  name: "Wulkan",     emoji: "🌋",  mult: 2.6, c: "#D8628F" },
+  { d: 100, name: "Słońce",     emoji: "☀️",  mult: 3,   c: "#D8B878" },
+];
+const streakTier = (n) => STREAK_TIERS.slice().reverse().find((t) => n >= t.d) || STREAK_TIERS[0];
+const streakNext = (n) => STREAK_TIERS.find((t) => t.d > n) || null;
+/* jednorazowe prezenty za kamienie milowe serii */
+const STREAK_GIFTS = {
+  7:   { seeds: 50,  msg: "Tydzień bez przerwy!" },
+  14:  { freeze: 1,  msg: "Dwa tygodnie — ochrona serii w prezencie" },
+  30:  { proDays: 1, seeds: 100, msg: "Miesiąc z rzędu — szacunek!" },
+  60:  { seeds: 300, freeze: 1, msg: "Dwa miesiące — jesteś maszyną" },
+  100: { proDays: 3, title: "Niezłomny", msg: "STO DNI. Legenda." },
+};
+
+/* ---------- ekonomia: Ziarna 🌱 ---------- */
+const SEED_SCAN = 2;            // za zeskanowany paragon
+const SEED_CHALLENGE = 40;      // za wygrane wyzwanie
+const SEED_WEEK_BUDGET = 25;    // za tydzień zamknięty pod budżetem — GŁÓWNE źródło
+const SEED_BY_TIER = { bronze: 10, silver: 20, gold: 35, legend: 50 };
+const SHOP = [
+  { id: "freeze", ico: "🧊", name: "Ochrona serii", desc: "Jeden dzień przerwy nie zerwie passy. Zużywa się sama.", cost: 60, max: 2 },
+  { id: "scans5", ico: "📷", name: "+5 skanów AI", desc: "Doładowanie na ten miesiąc.", cost: 80 },
+  { id: "pro1", ico: "👑", name: "1 dzień Pro", desc: "Pełne możliwości na dobę.", cost: 150 },
+  { id: "pro7", ico: "👑", name: "7 dni Pro", desc: "Tydzień bez limitów — najlepszy stosunek.", cost: 800, best: true },
+  { id: "theme-gold", ico: "🏆", name: "Motyw: Złoty zmierzch", desc: "Ciepła, złota paleta.", cost: 200, theme: true },
+  { id: "theme-navy", ico: "🌌", name: "Motyw: Nocny granat", desc: "Głęboki granat z błękitem.", cost: 200, theme: true },
+];
+
 const achTier = (a) => (a.id === "master-crown" || (a.proDays || 0) >= 14 ? "legend" : (a.proDays || 0) > 0 || (a.xp || 0) >= 80 ? "gold" : (a.xp || 0) >= 30 ? "silver" : "bronze");
 const ACH_CATS = [
   { key: "scans", label: "Paragony", emoji: "🧾" },
@@ -501,8 +537,9 @@ function challengeEval(inst, receipts, todayStr) {
   return null;
 }
 
-function computeStreak(receipts) {
+function computeStreak(receipts, freezeDays = []) {
   const days = new Set(receipts.map((r) => { const d = new Date(r.createdAt || 0); d.setHours(0, 0, 0, 0); return d.getTime(); }).filter((t) => t > 0));
+  (freezeDays || []).forEach((t) => { if (t > 0) days.add(t); }); // 🧊 dni uratowane ochroną liczą się do serii
   if (!days.size) return 0;
   const today = new Date(); today.setHours(0, 0, 0, 0);
   let cursor = today.getTime();
@@ -674,6 +711,103 @@ function GlobalStyle() {
   return (
     <style>{`
       @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+      /* ---- PALETY: ciemna (domyślna) ---- */
+      :root, html[data-pa-theme="dark"] {
+        --c-bg: #0A1410;
+        --c-bgSolid: rgba(10,20,16,.9);
+        --c-glow: #143024;
+        --c-surface: #13241C;
+        --c-glass: rgba(255,255,255,.045);
+        --c-glassBorder: rgba(255,255,255,.08);
+        --c-glassBorderSoft: rgba(255,255,255,.055);
+        --c-text: #EDF3EF;
+        --c-sub: #93A69C;
+        --c-faint: #5E7268;
+        --c-hdrA: rgba(10,20,16,.92);
+        --c-hdrB: rgba(10,20,16,.62);
+        --c-dim: rgba(4,10,7,.62);
+        --ovc: 255,255,255;
+        --sf1: rgba(255,255,255,.045);
+        --sf2: rgba(255,255,255,.075);
+        --sf3: rgba(255,255,255,.13);
+        --sh1: rgba(0,0,0,.3);
+        --sh2: rgba(0,0,0,.55);
+        --c-outer: #050B08;
+        --c-hero: linear-gradient(150deg, #17503F 0%, #0F3A2B 42%, #0A2A1F 100%);
+        --c-avatar: #0B1712;
+        --c-up: #F2A69E;
+        --c-down: #9BE8CB;
+        --g-free: linear-gradient(140deg,#1A2B23,#0E1A14);
+        --g-starter: linear-gradient(140deg,#1B2E33,#0E1A1D);
+        --g-pro: linear-gradient(140deg,#15493A 0%,#0E3528 50%,#0A2A1F 100%);
+        --g-family: linear-gradient(140deg,#3A3320 0%,#241E0E 55%,#1A1608 100%);
+        --c-scheme: dark;
+      }
+      /* ---- PALETA JASNA ---- */
+      html[data-pa-theme="light"] {
+        --c-bg: #EFF4F0;
+        --c-bgSolid: rgba(239,244,240,.92);
+        --c-glow: #DCEDE3;
+        --c-surface: #FFFFFF;
+        --c-glass: #FFFFFF;
+        --c-glassBorder: rgba(16,32,25,.12);
+        --c-glassBorderSoft: rgba(16,32,25,.085);
+        --c-text: #101F18;
+        --c-sub: #46574E;
+        --c-faint: #71837A;
+        --c-hdrA: rgba(239,244,240,.94);
+        --c-hdrB: rgba(239,244,240,.65);
+        --c-dim: rgba(16,32,25,.34);
+        --ovc: 16,32,25;
+        --sf1: #FFFFFF;
+        --sf2: #FFFFFF;
+        --sf3: rgba(16,32,25,.055);
+        --sh1: rgba(16,32,25,.07);
+        --sh2: rgba(16,32,25,.16);
+        --c-outer: #DDE6DF;
+        --c-hero: linear-gradient(150deg, #FFFFFF 0%, #F0FAF5 45%, #DFF3E9 100%);
+        --c-avatar: #FFFFFF;
+        --c-up: #C0453B;
+        --c-down: #0B7A59;
+        --g-free: linear-gradient(140deg,#FFFFFF,#EFF4F1);
+        --g-starter: linear-gradient(140deg,#F7FCFD,#E9F2F5);
+        --g-pro: linear-gradient(140deg,#F0FBF6 0%,#E1F6EC 50%,#D2F0E0 100%);
+        --g-family: linear-gradient(140deg,#FEFAF0 0%,#F8F1DE 55%,#F1E7CE 100%);
+        --c-scheme: light;
+      }
+      /* ---- PALETA: ZŁOTY ZMIERZCH (do kupienia) ---- */
+      html[data-pa-theme="gold"] {
+        --c-bg: #14100A; --c-bgSolid: rgba(20,16,10,.9); --c-glow: #33280F; --c-surface: #1F1810;
+        --c-glass: rgba(255,240,210,.055); --c-glassBorder: rgba(255,240,210,.1); --c-glassBorderSoft: rgba(255,240,210,.07);
+        --c-text: #F6EEDC; --c-sub: #B0A085; --c-faint: #7A6C56;
+        --c-hdrA: rgba(20,16,10,.92); --c-hdrB: rgba(20,16,10,.62); --c-dim: rgba(10,7,3,.66);
+        --ovc: 255,240,210; --sf1: rgba(255,240,210,.05); --sf2: rgba(255,240,210,.08); --sf3: rgba(255,240,210,.14);
+        --sh1: rgba(0,0,0,.34); --sh2: rgba(0,0,0,.6); --c-outer: #0A0704;
+        --c-hero: linear-gradient(150deg, #4A3A18 0%, #2E2410 45%, #1C1509 100%);
+        --c-avatar: #1A140C; --c-up: #F2A69E; --c-down: #E8CF9B;
+        --g-free: linear-gradient(140deg,#2A2114,#17110A); --g-starter: linear-gradient(140deg,#2C2418,#18120B);
+        --g-pro: linear-gradient(140deg,#4A3A18 0%,#33280F 50%,#221A0B 100%);
+        --g-family: linear-gradient(140deg,#5A4520 0%,#3A2C12 55%,#241B0A 100%);
+        --c-scheme: dark;
+      }
+      /* ---- PALETA: NOCNY GRANAT (do kupienia) ---- */
+      html[data-pa-theme="navy"] {
+        --c-bg: #0A1020; --c-bgSolid: rgba(10,16,32,.9); --c-glow: #16224A; --c-surface: #131C33;
+        --c-glass: rgba(214,230,255,.055); --c-glassBorder: rgba(214,230,255,.1); --c-glassBorderSoft: rgba(214,230,255,.07);
+        --c-text: #E6EDFA; --c-sub: #93A3C2; --c-faint: #5E6C8A;
+        --c-hdrA: rgba(10,16,32,.92); --c-hdrB: rgba(10,16,32,.62); --c-dim: rgba(4,8,18,.66);
+        --ovc: 214,230,255; --sf1: rgba(214,230,255,.05); --sf2: rgba(214,230,255,.08); --sf3: rgba(214,230,255,.14);
+        --sh1: rgba(0,0,0,.34); --sh2: rgba(0,0,0,.6); --c-outer: #05080F;
+        --c-hero: linear-gradient(150deg, #1E3468 0%, #16244A 45%, #0E1730 100%);
+        --c-avatar: #0F1728; --c-up: #F2A69E; --c-down: #8FD8FF;
+        --g-free: linear-gradient(140deg,#1B2440,#101728); --g-starter: linear-gradient(140deg,#1C2A4A,#101A2E);
+        --g-pro: linear-gradient(140deg,#1E3468 0%,#16244A 50%,#0E1730 100%);
+        --g-family: linear-gradient(140deg,#3A3320 0%,#241E0E 55%,#1A1608 100%);
+        --c-scheme: dark;
+      }
+      html { background: var(--c-bg); }
+      .pa-app { transition: background 340ms var(--pa-smooth, ease); }
       * { -webkit-tap-highlight-color: transparent; }
       .pa-display { font-family: 'Space Grotesk', sans-serif; letter-spacing: -0.01em; }
       .pa-body { font-family: 'Inter', sans-serif; }
@@ -702,8 +836,8 @@ function GlobalStyle() {
       button:focus-visible, [role="button"]:focus-visible, input:focus-visible { outline: 2px solid ${T.mint}88; outline-offset: 2px; border-radius: 10px; }
       input { caret-color: ${T.mint}; }
       .pa-hdr { position: sticky; top: 0; z-index: 5; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-        background: linear-gradient(180deg, rgba(10,20,16,.92), rgba(10,20,16,.62) 78%, transparent);
-        border-bottom: 1px solid rgba(255,255,255,.05); }
+        background: linear-gradient(180deg, var(--c-hdrA), var(--c-hdrB) 78%, transparent);
+        border-bottom: 1px solid rgba(var(--ovc),.05); }
       .pa-dim { animation: paDim 200ms ease both; }
       @keyframes paDim { from { opacity: 0; } to { opacity: 1; } }
       .pa-pulse { animation: paPulse 1.3s ease-in-out infinite; }
@@ -716,7 +850,7 @@ function GlobalStyle() {
       @keyframes paBracket { 0%,100% { opacity: .45; transform: scale(1) } 50% { opacity: 1; transform: scale(1.06) } }
       .pa-bracket { position: absolute; width: 20px; height: 20px; border-color: ${T.mint}; animation: paBracket 2s ease-in-out infinite; pointer-events: none; }
       @keyframes paScan { 0% { transform: translateY(0) } 50% { transform: translateY(128px) } 100% { transform: translateY(0) } }
-      .pa-shimmer { background: linear-gradient(100deg, rgba(255,255,255,.035) 30%, rgba(255,255,255,.13) 50%, rgba(255,255,255,.035) 70%); background-size: 240% 100%; animation: paShim 1.8s var(--pa-smooth) infinite; }
+      .pa-shimmer { background: linear-gradient(100deg, rgba(var(--ovc),.035) 30%, rgba(var(--ovc),.13) 50%, rgba(var(--ovc),.035) 70%); background-size: 240% 100%; animation: paShim 1.8s var(--pa-smooth) infinite; }
       @keyframes paShim { from { background-position: 210% 0 } to { background-position: -30% 0 } }
       .pa-pop { animation: paPop 640ms var(--pa-spring) both; }
       @keyframes paPop { 0% { opacity:0; transform: scale(.68) rotate(-5deg) } 55% { opacity:1; transform: scale(1.08) rotate(1.5deg) } 78% { transform: scale(.975) rotate(-.5deg) } 100% { opacity:1; transform: scale(1) rotate(0) } }
@@ -724,11 +858,11 @@ function GlobalStyle() {
       @keyframes paAurora { 0% { transform: translate(0,0) scale(1) } 100% { transform: translate(18px,-22px) scale(1.18) } }
       .pa-sheen { position: relative; overflow: hidden; }
       .pa-sheen::after { content:''; position:absolute; top:0; left:-60%; width:45%; height:100%; pointer-events: none;
-        background: linear-gradient(100deg, transparent, rgba(255,255,255,.35), transparent); transform: skewX(-18deg);
+        background: linear-gradient(100deg, transparent, rgba(var(--ovc),.35), transparent); transform: skewX(-18deg);
         animation: paSheen 6.5s var(--pa-smooth) infinite; }
       @keyframes paSheen { 0%,72% { left:-60% } 86% { left:130% } 100% { left:130% } }
       .pa-glow { animation: paGlow 2.6s ease-in-out infinite; }
-      @keyframes paGlow { 0%,100% { box-shadow: 0 10px 28px ${T.mint}44, inset 0 1.5px 0 rgba(255,255,255,.45), 0 0 0 5px rgba(10,20,16,.9) } 50% { box-shadow: 0 12px 34px ${T.mint}77, inset 0 1.5px 0 rgba(255,255,255,.5), 0 0 0 5px rgba(10,20,16,.9) } }
+      @keyframes paGlow { 0%,100% { box-shadow: 0 10px 28px ${T.mint}44, inset 0 1.5px 0 rgba(var(--ovc),.45), 0 0 0 5px var(--c-bgSolid) } 50% { box-shadow: 0 12px 34px ${T.mint}77, inset 0 1.5px 0 rgba(var(--ovc),.5), 0 0 0 5px var(--c-bgSolid) } }
       .pa-zz-paper { height: 9px; background:
         linear-gradient(-45deg, transparent 6.5px, ${T.paper} 0) 0 0 / 13px 13px repeat-x,
         linear-gradient(45deg, transparent 6.5px, ${T.paper} 0) 0 0 / 13px 13px repeat-x; }
@@ -744,6 +878,13 @@ function GlobalStyle() {
       select { -webkit-appearance: none; appearance: none; }
       ::-webkit-scrollbar { display: none; }
       .pa-scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; touch-action: pan-y; }
+      .pa-lvl-track { display: flex; align-items: flex-start; overflow-x: auto; overflow-y: hidden;
+        touch-action: pan-x; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
+        scroll-snap-type: x proximity; scrollbar-width: none; -ms-overflow-style: none; }
+      .pa-lvl-track::-webkit-scrollbar { display: none; }
+      .pa-lvl-node { scroll-snap-align: center; }
+      @keyframes paGiftBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+      .pa-gift { animation: paGiftBob 2.1s ease-in-out infinite; }
       .pa-app { height: 100vh; height: 100dvh; }
       @keyframes paBarGrow { from { transform: scaleY(0) } to { transform: scaleY(1) } }
       .pa-bar { transform-origin: bottom; animation: paBarGrow 800ms cubic-bezier(0.23, 1, 0.32, 1) both; }
@@ -758,8 +899,8 @@ function GlobalStyle() {
       .pa-fab-ring-2 { animation-delay: 1.2s; }
       @keyframes paGlint { 0% { transform: translateX(-120%) } 60%, 100% { transform: translateX(320%) } }
       .pa-bar-glint { position: relative; overflow: hidden; }
-      .pa-bar-glint::after { content: ""; position: absolute; top: 0; bottom: 0; width: 34%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent); animation: paGlint 2.6s ease-in-out infinite; }
-      @keyframes paCrown { 0%, 100% { box-shadow: 0 0 26px rgba(216,184,120,.35), inset 0 1px 0 rgba(255,255,255,.25) } 50% { box-shadow: 0 0 44px rgba(216,184,120,.6), inset 0 1px 0 rgba(255,255,255,.35) } }
+      .pa-bar-glint::after { content: ""; position: absolute; top: 0; bottom: 0; width: 34%; background: linear-gradient(90deg, transparent, rgba(var(--ovc),.55), transparent); animation: paGlint 2.6s ease-in-out infinite; }
+      @keyframes paCrown { 0%, 100% { box-shadow: 0 0 26px rgba(216,184,120,.35), inset 0 1px 0 rgba(var(--ovc),.25) } 50% { box-shadow: 0 0 44px rgba(216,184,120,.6), inset 0 1px 0 rgba(var(--ovc),.35) } }
       @keyframes paNodeRing { 0% { transform: scale(.8); opacity: .9; } 100% { transform: scale(1.9); opacity: 0; } }
       .pa-node-ring { position: absolute; inset: -2px; border-radius: 999px; border: 2px solid ${T.gold}; animation: paNodeRing 1.6s var(--pa-expo) infinite; pointer-events: none; }
       @keyframes paNodeBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2.5px); } }
@@ -775,6 +916,16 @@ function GlobalStyle() {
         animation: paRays 7s linear infinite; }
       @keyframes paStageIn { 0% { opacity: 0; transform: translateY(14px) scale(.94); filter: blur(5px); } 100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); } }
       .pa-stage { opacity: 0; animation: paStageIn 480ms var(--pa-spring) forwards; }
+      @keyframes paWelcomeScan { 0% { top: 6%; opacity: 0; } 12% { opacity: 1; } 88% { opacity: 1; } 100% { top: 94%; opacity: 0; } }
+      .pa-w-scan { position: absolute; left: 6%; right: 6%; height: 2px; border-radius: 2px;
+        background: linear-gradient(90deg, transparent, ${T.mint}, transparent);
+        box-shadow: 0 0 14px ${T.mint}, 0 0 30px ${T.mint}77; animation: paWelcomeScan 2.6s var(--pa-smooth) infinite; }
+      @keyframes paItemIn { from { opacity: 0; transform: translateX(-7px); } to { opacity: 1; transform: translateX(0); } }
+      .pa-w-item { animation: paItemIn 420ms var(--pa-spring) backwards; }
+      @keyframes paBreathe { 0%,100% { transform: scale(1); } 50% { transform: scale(1.045); } }
+      .pa-breathe { animation: paBreathe 4.2s ease-in-out infinite; }
+      @keyframes paHaloSpin { to { transform: rotate(360deg); } }
+      .pa-halo { animation: paHaloSpin 14s linear infinite; }
       .pa-crown { animation: paCrown 2.4s ease-in-out infinite; }
       @keyframes paConfetti {
         0%   { transform: translate3d(0,0,0) rotate3d(1,1,.3,0deg) scale(.6); opacity: 1; animation-timing-function: cubic-bezier(.12,.72,.35,1) }
@@ -789,7 +940,7 @@ function GlobalStyle() {
       @keyframes paSpotPulse { 0%,100% { box-shadow: 0 0 0 9999px rgba(3,9,6,.8), 0 0 0 3px rgba(45,212,160,.9), 0 0 22px 6px rgba(45,212,160,.35) } 50% { box-shadow: 0 0 0 9999px rgba(3,9,6,.8), 0 0 0 3px rgba(45,212,160,.55), 0 0 30px 10px rgba(45,212,160,.5) } }
       .pa-spot { box-shadow: 0 0 0 9999px rgba(3,9,6,.8), 0 0 0 3px rgba(45,212,160,.8); animation: paSpotPulse 2.2s var(--pa-smooth) infinite; transition: top 320ms var(--pa-smooth), left 320ms var(--pa-smooth), width 320ms var(--pa-smooth), height 320ms var(--pa-smooth), border-radius 260ms ease; }
       @media (prefers-reduced-motion: reduce) {
-        .pa-fade, .pa-rise, .pa-sheet, .pa-scan, .pa-shimmer, .pa-pop, .pa-aurora, .pa-glow, .pa-bar, .pa-scanline, .pa-fill, .pa-spot, .pa-slidein, .pa-fab-ring, .pa-confetti, .pa-crown, .pa-float, .pa-flame, .pa-burst, .pa-spark, .pa-orbit, .pa-ring-pulse, .pa-bracket, .pa-node-ring, .pa-node-bob, .pa-node-pop, .pa-node-burst, .pa-rays, .pa-stage { animation: none; filter: none; }
+        .pa-fade, .pa-rise, .pa-sheet, .pa-scan, .pa-shimmer, .pa-pop, .pa-aurora, .pa-glow, .pa-bar, .pa-scanline, .pa-fill, .pa-spot, .pa-slidein, .pa-fab-ring, .pa-confetti, .pa-crown, .pa-float, .pa-flame, .pa-burst, .pa-spark, .pa-orbit, .pa-ring-pulse, .pa-bracket, .pa-node-ring, .pa-node-bob, .pa-node-pop, .pa-node-burst, .pa-rays, .pa-stage, .pa-w-scan, .pa-w-item, .pa-breathe, .pa-halo { animation: none; filter: none; }
         .pa-press:active { transform: scale(.98); }
         .pa-tab-ico { transition: none; }
       .pa-bar-glint::after { animation: none; display: none; }
@@ -844,7 +995,7 @@ function SpendCurve({ receipts, month, height = 66 }) {
         </linearGradient>
       </defs>
       {prevCum.some((v) => v > 0) && (
-        <path d={prevPath} fill="none" stroke="rgba(255,255,255,.28)" strokeWidth="1.6" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
+        <path d={prevPath} fill="none" stroke="rgba(var(--ovc),.28)" strokeWidth="1.6" strokeDasharray="4 4" vectorEffect="non-scaling-stroke" />
       )}
       {areaPath && <path d={areaPath} fill="url(#pa-curve-fill)" style={{ opacity: ready ? 1 : 0, transition: "opacity 700ms ease 200ms" }} />}
       {curPath && (
@@ -884,28 +1035,28 @@ function CategoryChip({ slug, onClick, light }) {
 function Toggle({ on, onChange }) {
   return (
     <button onClick={() => onChange(!on)} className="pa-press"
-      style={{ width: 46, height: 27, borderRadius: 999, border: `1px solid ${on ? T.mint + "66" : "rgba(255,255,255,.12)"}`,
-        background: on ? `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})` : "rgba(255,255,255,.07)",
+      style={{ width: 46, height: 27, borderRadius: 999, border: `1px solid ${on ? T.mint + "66" : "rgba(var(--ovc),.12)"}`,
+        background: on ? `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})` : "rgba(var(--ovc),.07)",
         position: "relative", cursor: "pointer", transition: `background 220ms ease, border-color 220ms ease`, flexShrink: 0 }}>
       <span style={{ position: "absolute", top: 2.5, left: on ? 21 : 3, width: 20, height: 20, borderRadius: 999, background: "#fff",
-        boxShadow: "0 2px 6px rgba(0,0,0,.35)", transition: `left 220ms ${T.easeOut}` }} />
+        boxShadow: "0 2px 6px var(--sh1)", transition: `left 220ms ${T.easeOut}` }} />
     </button>
   );
 }
 
 function CategorySheet({ current, onPick, onClose }) {
   return (
-    <div className="pa-dim" onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(4,10,7,.62)", backdropFilter: "blur(3px)", zIndex: 50, display: "flex", alignItems: "flex-end" }}>
+    <div className="pa-dim" onClick={onClose} style={{ position: "absolute", inset: 0, background: "var(--c-dim)", backdropFilter: "blur(3px)", zIndex: 50, display: "flex", alignItems: "flex-end" }}>
       <div className="pa-sheet pa-scroll" onClick={(e) => e.stopPropagation()}
-        style={{ background: "#13241C", border: "1px solid rgba(255,255,255,.08)", borderBottom: "none", width: "100%", borderRadius: "22px 22px 0 0", padding: "16px 16px 28px", maxHeight: "72%", overflowY: "auto", boxShadow: "0 -16px 50px rgba(0,0,0,.5)" }}>
-        <div style={{ width: 38, height: 4, background: "rgba(255,255,255,.16)", borderRadius: 2, margin: "0 auto 16px" }} />
+        style={{ background: "var(--c-surface)", border: "1px solid rgba(var(--ovc),.08)", borderBottom: "none", width: "100%", borderRadius: "22px 22px 0 0", padding: "16px 16px 28px", maxHeight: "72%", overflowY: "auto", boxShadow: "0 -16px 50px var(--sh2)" }}>
+        <div style={{ width: 38, height: 4, background: "var(--sf3)", borderRadius: 2, margin: "0 auto 16px" }} />
         <div className="pa-display" style={{ fontSize: 16, fontWeight: 600, marginBottom: 14, color: T.text }}>Wybierz kategorię</div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           {CATEGORIES.map((c, i) => (
             <button key={c.slug} onClick={() => onPick(c.slug)} className="pa-press pa-body pa-fade"
               style={{ animationDelay: `${Math.min(i * 18, 200)}ms`, display: "flex", alignItems: "center", gap: 9, padding: "10px 11px", borderRadius: 13, textAlign: "left",
-                border: current === c.slug ? `1.5px solid ${T.mint}` : `1px solid rgba(255,255,255,.08)`,
-                background: current === c.slug ? T.mint + "14" : "rgba(255,255,255,.03)",
+                border: current === c.slug ? `1.5px solid ${T.mint}` : `1px solid rgba(var(--ovc),.08)`,
+                background: current === c.slug ? T.mint + "14" : "rgba(var(--ovc),.03)",
                 fontSize: 12.5, fontWeight: 500, color: T.text, cursor: "pointer" }}>
               <span style={{ fontSize: 17 }}>{c.icon}</span>{c.name}
             </button>
@@ -918,9 +1069,9 @@ function CategorySheet({ current, onPick, onClose }) {
 
 function ConfirmSheet({ title, body, confirmLabel, onConfirm, onClose }) {
   return (
-    <div className="pa-dim" onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(4,10,7,.62)", backdropFilter: "blur(3px)", zIndex: 60, display: "flex", alignItems: "flex-end" }}>
+    <div className="pa-dim" onClick={onClose} style={{ position: "absolute", inset: 0, background: "var(--c-dim)", backdropFilter: "blur(3px)", zIndex: 60, display: "flex", alignItems: "flex-end" }}>
       <div className="pa-sheet pa-scroll" onClick={(e) => e.stopPropagation()}
-        style={{ background: "#13241C", border: "1px solid rgba(255,255,255,.08)", borderBottom: "none", width: "100%", borderRadius: "22px 22px 0 0", padding: "20px 18px calc(26px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -16px 50px rgba(0,0,0,.5)", maxHeight: "88%", boxSizing: "border-box" }}>
+        style={{ background: "var(--c-surface)", border: "1px solid rgba(var(--ovc),.08)", borderBottom: "none", width: "100%", borderRadius: "22px 22px 0 0", padding: "20px 18px calc(26px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -16px 50px var(--sh2)", maxHeight: "88%", boxSizing: "border-box" }}>
         <div className="pa-display" style={{ fontSize: 16.5, fontWeight: 600, color: T.text, marginBottom: 6 }}>{title}</div>
         <div className="pa-body" style={{ fontSize: 13, color: T.sub, marginBottom: 18, lineHeight: 1.5 }}>{body}</div>
         <button className="pa-press pa-display" onClick={onConfirm}
@@ -928,7 +1079,7 @@ function ConfirmSheet({ title, body, confirmLabel, onConfirm, onClose }) {
           {confirmLabel}
         </button>
         <button className="pa-press pa-body" onClick={onClose}
-          style={{ width: "100%", padding: "12px 0", marginTop: 8, borderRadius: 14, border: "1px solid rgba(255,255,255,.1)", background: "none", color: T.sub, fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}>
+          style={{ width: "100%", padding: "12px 0", marginTop: 8, borderRadius: 14, border: "1px solid rgba(var(--ovc),.1)", background: "none", color: T.sub, fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}>
           Anuluj
         </button>
       </div>
@@ -940,9 +1091,9 @@ function ConfirmSheet({ title, body, confirmLabel, onConfirm, onClose }) {
 function InputSheet({ title, icon, note, fields, submitLabel, onSubmit, onClose }) {
   const [vals, setVals] = useState(() => Object.fromEntries(fields.map((f) => [f.key, f.value || ""])));
   return (
-    <div className="pa-dim" onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(4,10,7,.62)", backdropFilter: "blur(3px)", zIndex: 60, display: "flex", alignItems: "flex-end" }}>
+    <div className="pa-dim" onClick={onClose} style={{ position: "absolute", inset: 0, background: "var(--c-dim)", backdropFilter: "blur(3px)", zIndex: 60, display: "flex", alignItems: "flex-end" }}>
       <div className="pa-sheet pa-scroll" onClick={(e) => e.stopPropagation()}
-        style={{ background: "#13241C", border: "1px solid rgba(255,255,255,.08)", borderBottom: "none", width: "100%", borderRadius: "22px 22px 0 0", padding: "20px 18px calc(26px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -16px 50px rgba(0,0,0,.5)", maxHeight: "88%", boxSizing: "border-box" }}>
+        style={{ background: "var(--c-surface)", border: "1px solid rgba(var(--ovc),.08)", borderBottom: "none", width: "100%", borderRadius: "22px 22px 0 0", padding: "20px 18px calc(26px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -16px 50px var(--sh2)", maxHeight: "88%", boxSizing: "border-box" }}>
         <div className="pa-display" style={{ fontSize: 16.5, fontWeight: 600, color: T.text, marginBottom: note ? 6 : 16, display: "flex", alignItems: "center", gap: 8 }}>
           {icon && <span style={{ fontSize: 18 }}>{icon}</span>}{title}
         </div>
@@ -952,7 +1103,7 @@ function InputSheet({ title, icon, note, fields, submitLabel, onSubmit, onClose 
             <label className="pa-body" style={{ display: "block", fontSize: 10, fontWeight: 600, color: T.faint, textTransform: "uppercase", letterSpacing: ".09em", marginBottom: 5 }}>{f.label}</label>
             <input value={vals[f.key]} placeholder={f.placeholder || ""} type={f.type || "text"} min={f.min}
               onChange={(e) => setVals((v) => ({ ...v, [f.key]: e.target.value }))}
-              className="pa-body" style={{ width: "100%", padding: "11px 12px", borderRadius: 12, border: `1px solid ${T.glassBorder}`, background: "rgba(255,255,255,.04)", fontSize: 14, color: T.text, boxSizing: "border-box" }} />
+              className="pa-body" style={{ width: "100%", padding: "11px 12px", borderRadius: 12, border: `1px solid ${T.glassBorder}`, background: "var(--sf1)", fontSize: 14, color: T.text, boxSizing: "border-box" }} />
           </div>
         ))}
         <button className="pa-press pa-display" onClick={() => onSubmit(vals)}
@@ -972,7 +1123,7 @@ function OnboardingScreen({ onFinish, onSkip }) {
   /* ilustracje slajdów budowane w CSS */
   const IlluScan = () => (
     <div style={{ position: "relative", width: 150, height: 170, margin: "0 auto" }}>
-      <div style={{ position: "absolute", inset: 0, borderRadius: 14, background: "linear-gradient(180deg,#F7F4EC,#EDE9DE)", boxShadow: "0 24px 60px rgba(0,0,0,.5), 0 4px 14px rgba(0,0,0,.35)", padding: "16px 14px", boxSizing: "border-box" }}>
+      <div style={{ position: "absolute", inset: 0, borderRadius: 14, background: "linear-gradient(180deg,#F7F4EC,#EDE9DE)", boxShadow: "0 24px 60px var(--sh2), 0 4px 14px var(--sh1)", padding: "16px 14px", boxSizing: "border-box" }}>
         <div style={{ height: 9, width: "58%", borderRadius: 5, background: "#28362E", margin: "0 auto 12px", opacity: .85 }} />
         {[82, 64, 74, 50, 68].map((w, i) => (
           <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 9 }}>
@@ -1001,7 +1152,7 @@ function OnboardingScreen({ onFinish, onSkip }) {
     </div>
   );
   const IlluGoal = () => (
-    <div style={{ width: 210, margin: "0 auto", borderRadius: 18, background: "rgba(255,255,255,.055)", border: "1px solid rgba(255,255,255,.11)", padding: "16px 16px 15px", boxShadow: "0 20px 50px rgba(0,0,0,.4)" }}>
+    <div style={{ width: 210, margin: "0 auto", borderRadius: 18, background: "var(--sf2)", border: "1px solid rgba(var(--ovc),.11)", padding: "16px 16px 15px", boxShadow: "0 20px 50px var(--sh2)" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 11, marginBottom: 13 }}>
         <div style={{ width: 40, height: 40, borderRadius: 12, background: `${T.gold}1C`, border: `1px solid ${T.gold}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>🏝️</div>
         <div>
@@ -1009,7 +1160,7 @@ function OnboardingScreen({ onFinish, onSkip }) {
           <div className="pa-mono" style={{ fontSize: 10.5, color: T.faint, textAlign: "left" }}>2 160 / 3 000 zł</div>
         </div>
       </div>
-      <div style={{ height: 9, background: "rgba(255,255,255,.08)", borderRadius: 5, overflow: "hidden" }}>
+      <div style={{ height: 9, background: "var(--sf2)", borderRadius: 5, overflow: "hidden" }}>
         <div className="pa-fill" style={{ height: "100%", borderRadius: 5, background: `linear-gradient(90deg, ${T.gold}, #B2945A)`, boxShadow: `0 0 12px ${T.gold}66` }} />
       </div>
       <div className="pa-body pa-fade" style={{ fontSize: 10.5, color: T.mint, marginTop: 10, animationDelay: "900ms" }}>✨ Odkładaj 280 zł/mies. — zdążysz na lipiec</div>
@@ -1050,14 +1201,14 @@ function OnboardingScreen({ onFinish, onSkip }) {
       <div key={step} className="pa-rise pa-scroll" style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "10px 32px", textAlign: "center", position: "relative", zIndex: 1 }}>
         {!s.isName && <div style={{ marginBottom: 30 }}>{s.illu}</div>}
         {s.isName && (
-          <div style={{ width: 88, height: 88, borderRadius: 28, background: `linear-gradient(140deg, ${T.mint}1E, rgba(255,255,255,.03))`, border: `1px solid ${T.mint}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, marginBottom: 26, boxShadow: `0 20px 50px ${T.mint}22` }}>👋</div>
+          <div style={{ width: 88, height: 88, borderRadius: 28, background: `linear-gradient(140deg, ${T.mint}1E, rgba(var(--ovc),.03))`, border: `1px solid ${T.mint}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, marginBottom: 26, boxShadow: `0 20px 50px ${T.mint}22` }}>👋</div>
         )}
         <div className="pa-display" style={{ fontSize: 24, fontWeight: 700, color: T.text, marginBottom: 12 }}>{s.title}</div>
         <div className="pa-body" style={{ fontSize: 13.5, color: T.sub, lineHeight: 1.65, maxWidth: 300 }}>{s.body}</div>
         {s.chips && (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center", marginTop: 22 }}>
             {s.chips.map((c) => (
-              <span key={c} className="pa-body" style={{ fontSize: 11, fontWeight: 600, color: T.sub, background: "rgba(255,255,255,.06)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 999, padding: "6px 12px" }}>{c}</span>
+              <span key={c} className="pa-body" style={{ fontSize: 11, fontWeight: 600, color: T.sub, background: "var(--sf2)", border: "1px solid rgba(var(--ovc),.1)", borderRadius: 999, padding: "6px 12px" }}>{c}</span>
             ))}
           </div>
         )}
@@ -1065,19 +1216,19 @@ function OnboardingScreen({ onFinish, onSkip }) {
           <input className="pa-body" value={name} placeholder="np. Michał" autoFocus
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") onFinish(name.trim()); }}
-            style={{ marginTop: 24, width: "100%", maxWidth: 260, padding: "13px 15px", borderRadius: 14, border: `1px solid ${T.mint}45`, background: "rgba(255,255,255,.05)", fontSize: 15, color: T.text, textAlign: "center", boxSizing: "border-box", outline: "none" }} />
+            style={{ marginTop: 24, width: "100%", maxWidth: 260, padding: "13px 15px", borderRadius: 14, border: `1px solid ${T.mint}45`, background: "var(--sf1)", fontSize: 15, color: T.text, textAlign: "center", boxSizing: "border-box", outline: "none" }} />
         )}
       </div>
 
       <div style={{ padding: "0 22px calc(30px + env(safe-area-inset-bottom, 0px))", position: "relative", zIndex: 1 }}>
         <div style={{ display: "flex", justifyContent: "center", gap: 7, marginBottom: 20 }}>
           {slides.map((_, i) => (
-            <div key={i} style={{ width: i === step ? 22 : 7, height: 7, borderRadius: 999, background: i === step ? T.mint : "rgba(255,255,255,.18)", transition: `all 300ms ${T.easeOut}` }} />
+            <div key={i} style={{ width: i === step ? 22 : 7, height: 7, borderRadius: 999, background: i === step ? T.mint : "rgba(var(--ovc),.18)", transition: `all 300ms ${T.easeOut}` }} />
           ))}
         </div>
         <button className="pa-press pa-display" onClick={() => last ? onFinish(name.trim()) : setStep((x) => x + 1)}
           style={{ width: "100%", padding: "14px 0", borderRadius: 14, border: "none", cursor: "pointer", fontSize: 15, fontWeight: 700,
-            background: `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})`, color: "#06251A", boxShadow: `0 8px 24px ${T.mint}38, inset 0 1px 0 rgba(255,255,255,.35)` }}>
+            background: `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})`, color: "#06251A", boxShadow: `0 8px 24px ${T.mint}38, inset 0 1px 0 rgba(var(--ovc),.35)` }}>
           {last ? "Zaczynamy! 🚀" : "Dalej"}
         </button>
         {step > 0 && (
@@ -1214,8 +1365,8 @@ function TutorialOverlay({ step, targets, appRef, onNext, onSkip }) {
       {/* reflektor: wycięcie + przyciemnienie całej reszty */}
       <div className="pa-spot" style={{ position: "absolute", transition: `all 320ms ${T.easeOut}`, ...spotStyle }} />
       {/* dymek */}
-      <div key={step} className="pa-rise" style={{ position: "absolute", ...bubbleStyle, background: "#13241C", border: `1px solid ${T.mint}3A`,
-        borderRadius: 20, padding: "16px 17px 14px", boxShadow: "0 24px 60px rgba(0,0,0,.55)" }}>
+      <div key={step} className="pa-rise" style={{ position: "absolute", ...bubbleStyle, background: "var(--c-surface)", border: `1px solid ${T.mint}3A`,
+        borderRadius: 20, padding: "16px 17px 14px", boxShadow: "0 24px 60px var(--sh2)" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
           <div className="pa-display" style={{ fontSize: 15.5, fontWeight: 700, color: T.text }}>{s.title}</div>
           <span className="pa-mono" style={{ fontSize: 10, color: T.faint }}>{step + 1}/{TUTORIAL_STEPS.length}</span>
@@ -1234,7 +1385,7 @@ function TutorialOverlay({ step, targets, appRef, onNext, onSkip }) {
         </div>
         <div style={{ display: "flex", gap: 5, marginTop: 12 }}>
           {TUTORIAL_STEPS.map((_, i) => (
-            <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= step ? T.mint : "rgba(255,255,255,.12)", transition: "background 250ms ease" }} />
+            <div key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= step ? T.mint : "rgba(var(--ovc),.12)", transition: "background 250ms ease" }} />
           ))}
         </div>
       </div>
@@ -1251,8 +1402,8 @@ function JoinCodeBox({ onJoin, busy, small }) {
         onChange={(e) => setCode(e.target.value.toUpperCase())}
         onKeyDown={(e) => { if (e.key === "Enter" && code.trim()) onJoin(code); }}
         style={{ width: small ? 110 : undefined, flex: small ? undefined : 1, padding: small ? "9px 11px" : "11px 13px", borderRadius: small ? 11 : 12,
-          border: "1px solid rgba(255,255,255,.14)", background: "rgba(255,255,255,.05)", fontSize: small ? 12 : 14,
-          letterSpacing: ".2em", color: "#EAF2ED", textAlign: "center", outline: "none" }} />
+          border: "1px solid rgba(var(--ovc),.14)", background: "var(--sf1)", fontSize: small ? 12 : 14,
+          letterSpacing: ".2em", color: "var(--c-text)", textAlign: "center", outline: "none" }} />
       <button className="pa-press pa-body" disabled={busy} onClick={() => onJoin(code)}
         style={{ padding: small ? "9px 14px" : "0 18px", height: small ? undefined : 42, borderRadius: small ? 11 : 12,
           border: `1px solid ${T.mint}45`, background: `${T.mint}12`, color: T.mint, fontSize: small ? 11.5 : 12.5, fontWeight: 700, cursor: "pointer" }}>
@@ -1263,7 +1414,81 @@ function JoinCodeBox({ onJoin, busy, small }) {
 }
 
 /* ---------- EKRAN LOGOWANIA (Supabase) ---------- */
+
+/* ---------- elementy ekranu startowego (poza komponentem = animacje nie restartują) ---------- */
+  /* ---- tło: aurora + delikatna siatka ---- */
+function Backdrop() {
+  return (
+    <>
+      <div className="pa-aurora" style={{ top: -120, right: -80, width: 300, height: 300, background: `radial-gradient(circle, ${T.mint}2E, transparent 68%)` }} />
+      <div className="pa-aurora" style={{ bottom: -100, left: -90, width: 260, height: 260, background: `radial-gradient(circle, ${T.gold}22, transparent 68%)`, animationDelay: "1.4s" }} />
+    </>
+  );
+}
+
+  /* ---- logo z wirującą aureolą ---- */
+function Logo({ size = 78 }) {
+  return (
+    <div style={{ position: "relative", width: size, height: size, margin: "0 auto" }}>
+      <div className="pa-halo" style={{ position: "absolute", inset: -9, borderRadius: 30,
+        background: `conic-gradient(from 0deg, ${T.mint}00, ${T.mint}88, ${T.gold}66, ${T.mint}00)`,
+        WebkitMask: "radial-gradient(circle, transparent 62%, #000 66%)", mask: "radial-gradient(circle, transparent 62%, #000 66%)" }} />
+      <div className="pa-breathe" style={{ width: size, height: size, borderRadius: 26, display: "flex", alignItems: "center", justifyContent: "center",
+        background: `linear-gradient(140deg, ${T.mint}, ${T.mintDeep})`, boxShadow: `0 18px 44px ${T.mint}40, inset 0 2px 0 rgba(255,255,255,.35)` }}>
+        <Icon name="receipt" size={Math.round(size * 0.46)} sw={1.9} color="#06251A" />
+      </div>
+    </div>
+  );
+}
+
+  /* ---- żywy pokaz: paragon skanowany w kółko ---- */
+function LiveDemo({ demoN }) {
+  return (
+    <div style={{ position: "relative", width: "100%", maxWidth: 260, margin: "0 auto", borderRadius: 18, overflow: "hidden",
+      background: T.paper, boxShadow: `0 20px 44px var(--sh2), 0 0 0 1px rgba(var(--ovc),.06)`, padding: "15px 16px 16px" }}>
+      <div className="pa-w-scan" style={{ top: "6%" }} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 9 }}>
+        <span className="pa-display" style={{ fontSize: 12, fontWeight: 700, color: T.paperInk }}>Biedronka</span>
+        <span className="pa-mono" style={{ fontSize: 8.5, color: T.paperSub }}>DZIŚ 17:42</span>
+      </div>
+      <div style={{ height: 1, background: "rgba(0,0,0,.09)", marginBottom: 9 }} />
+      <div style={{ minHeight: 92 }}>
+        {DEMO_LINES.slice(0, demoN).map((it, i) => (
+          <div key={it[0]} className="pa-w-item" style={{ display: "flex", justifyContent: "space-between", gap: 10, marginBottom: 6, animationDelay: `${i * 40}ms` }}>
+            <span className="pa-body" style={{ fontSize: 10.5, color: T.paperInk, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{it[0]}</span>
+            <span className="pa-mono" style={{ fontSize: 10.5, color: T.paperInk, flexShrink: 0 }}>{it[1]}</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ height: 1, background: "rgba(0,0,0,.09)", margin: "4px 0 8px" }} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <span className="pa-mono" style={{ fontSize: 9, letterSpacing: ".1em", color: T.paperSub }}>RAZEM</span>
+        <span className="pa-display" style={{ fontSize: 15, fontWeight: 700, color: demoN >= DEMO_LINES.length ? "#0E7A5A" : T.paperSub }}>
+          {demoN >= DEMO_LINES.length ? "27,75 zł" : "…"}
+        </span>
+      </div>
+      {demoN >= DEMO_LINES.length && (
+        <div className="pa-fade" style={{ position: "absolute", top: 11, right: 11, display: "flex", alignItems: "center", gap: 4,
+          background: "#0E7A5A", borderRadius: 999, padding: "3px 8px" }}>
+          <span style={{ fontSize: 8.5, color: "#fff", fontWeight: 700 }}>✓ ODCZYTANE</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+const DEMO_LINES = [["Mleko Łaciate 3,2%", "4,29"], ["Chleb wiejski", "5,49"], ["Masło extra 82%", "7,99"], ["Pomidory malinowe", "9,98"]];
+
 function AuthScreen({ onGuest, onLoggedIn }) {
+  const [stage, setStage] = useState("welcome"); // welcome | form
+  const [showPass, setShowPass] = useState(false);
+  const [demoN, setDemoN] = useState(0);
+  useEffect(() => {
+    if (stage !== "welcome") return undefined;
+    const iv = setInterval(() => setDemoN((n) => (n >= DEMO_LINES.length ? 0 : n + 1)), 820);
+    return () => clearInterval(iv);
+  }, [stage]);
   const [mode, setMode] = useState("login"); // login | register
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -1322,79 +1547,150 @@ function AuthScreen({ onGuest, onLoggedIn }) {
     setBusy(false);
   };
 
-  const inputSt = { width: "100%", padding: "12px 13px", borderRadius: 13, border: `1px solid ${T.glassBorder}`, background: "rgba(255,255,255,.05)", fontSize: 14, color: T.text, boxSizing: "border-box" };
-  const label = { display: "block", fontSize: 10, fontWeight: 600, color: T.faint, textTransform: "uppercase", letterSpacing: ".09em", marginBottom: 5 };
 
-  return (
-    <div className="pa-fade" style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
-      <div className="pa-aurora" style={{ top: -110, right: -70, width: 280, height: 280, background: `radial-gradient(circle, ${T.mint}2E, transparent 68%)` }} />
-      <div className="pa-aurora" style={{ bottom: -90, left: -80, width: 240, height: 240, background: `radial-gradient(circle, ${T.gold}20, transparent 68%)`, animationDelay: "3s" }} />
-      <div className="pa-scroll" style={{ flex: 1, padding: "44px 24px calc(28px + env(safe-area-inset-bottom, 0px))", position: "relative", display: "flex", flexDirection: "column" }}>
-        <div style={{ textAlign: "center", marginBottom: 26 }}>
-          <div style={{ width: 74, height: 74, margin: "0 auto", borderRadius: 24, background: `linear-gradient(140deg, ${T.mint}, ${T.mintDeep})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 18px 44px ${T.mint}44, inset 0 1.5px 0 rgba(255,255,255,.4)` }}>
-            <Icon name="receipt" size={34} sw={1.9} color="#06251A" />
+  const inputSt = { width: "100%", padding: "13px 14px", borderRadius: 14, border: `1px solid ${T.glassBorder}`,
+    background: "var(--sf1)", color: T.text, fontSize: 14.5, outline: "none", boxSizing: "border-box" };
+  const label = { display: "block", fontSize: 10, fontWeight: 600, color: T.faint, textTransform: "uppercase", letterSpacing: ".09em", marginBottom: 6 };
+
+  /* ================= ETAP 1: POWITANIE ================= */
+  if (stage === "welcome") {
+    return (
+      <div className="pa-fade" style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
+        <Backdrop />
+        <div className="pa-scroll" style={{ flex: 1, padding: "40px 24px calc(22px + env(safe-area-inset-bottom, 0px))", position: "relative", zIndex: 1, display: "flex", flexDirection: "column" }}>
+          <div className="pa-rise" style={{ textAlign: "center" }}>
+            <Logo />
+            <div className="pa-display" style={{ fontSize: 28, fontWeight: 700, color: T.text, marginTop: 17, letterSpacing: "-.02em" }}>Paragon AI</div>
+            <div className="pa-body" style={{ fontSize: 13, color: T.sub, marginTop: 6, lineHeight: 1.55, maxWidth: 270, marginLeft: "auto", marginRight: "auto" }}>
+              Zrób zdjęcie paragonu — resztę zrobi AI.<br />Wydatki, budżet i oszczędności w jednym miejscu.
+            </div>
           </div>
-          <div className="pa-display" style={{ fontSize: 25, fontWeight: 700, color: T.text, marginTop: 16 }}>Paragon AI</div>
-          <div className="pa-body" style={{ fontSize: 12.5, color: T.sub, marginTop: 5 }}>Twoje konto — dane bezpieczne w chmurze, dostępne z każdego urządzenia.</div>
+
+          <div className="pa-rise" style={{ margin: "26px 0 22px", animationDelay: "120ms" }}>
+            <LiveDemo demoN={demoN} />
+          </div>
+
+          <div className="pa-rise" style={{ display: "flex", flexDirection: "column", gap: 9, marginBottom: 22, animationDelay: "220ms" }}>
+            {[["🤖", "Skan w 3 sekundy", "AI czyta pozycje, ceny i kategorie"],
+              ["📊", "Wiesz, gdzie ucieka kasa", "Podział na kategorie, sklepy i trendy"],
+              ["🏆", "38 osiągnięć i 30 poziomów", "Oszczędzanie, które wciąga"]].map(([ico, ttl, sub], i) => (
+              <div key={ttl} style={{ display: "flex", alignItems: "center", gap: 11, padding: "10px 12px", borderRadius: 14,
+                background: "var(--sf1)", border: `1px solid ${T.glassBorderSoft}` }}>
+                <span style={{ fontSize: 17, flexShrink: 0 }}>{ico}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div className="pa-display" style={{ fontSize: 12.5, fontWeight: 600, color: T.text }}>{ttl}</div>
+                  <div className="pa-body" style={{ fontSize: 10.5, color: T.faint, marginTop: 1.5 }}>{sub}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ flex: 1, minHeight: 8 }} />
+
+          <div className="pa-rise" style={{ animationDelay: "320ms" }}>
+            <button className="pa-press pa-display pa-glow" onClick={() => { setStage("form"); setMode("register"); setErr(""); setInfo(""); }}
+              style={{ width: "100%", padding: "15px 0", borderRadius: 16, border: "none", cursor: "pointer", fontSize: 15, fontWeight: 700,
+                background: `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})`, color: "#06251A" }}>
+              Zacznij za darmo
+            </button>
+            <button className="pa-press pa-body" onClick={() => { setStage("form"); setMode("login"); setErr(""); setInfo(""); }}
+              style={{ width: "100%", marginTop: 9, padding: "13px 0", borderRadius: 15, cursor: "pointer", fontSize: 13.5, fontWeight: 600,
+                border: `1px solid ${T.glassBorder}`, background: "var(--sf1)", color: T.text }}>
+              Mam już konto
+            </button>
+            <button className="pa-press pa-body" onClick={onGuest}
+              style={{ width: "100%", marginTop: 14, background: "none", border: "none", color: T.faint, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+              Kontynuuj bez konta <span style={{ color: T.mint }}>→</span>
+            </button>
+            <div className="pa-body" style={{ fontSize: 10, color: T.faint, textAlign: "center", marginTop: 7, lineHeight: 1.5 }}>
+              Bez konta dane zostają tylko na tym urządzeniu.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ================= ETAP 2: FORMULARZ ================= */
+  return (
+    <div className="pa-slidein" style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden" }}>
+      <Backdrop />
+      <div className="pa-scroll" style={{ flex: 1, padding: "16px 24px calc(24px + env(safe-area-inset-bottom, 0px))", position: "relative", zIndex: 1, display: "flex", flexDirection: "column" }}>
+        <button className="pa-press" onClick={() => { setStage("welcome"); setErr(""); setInfo(""); }}
+          style={{ alignSelf: "flex-start", width: 38, height: 38, borderRadius: 12, cursor: "pointer",
+            border: `1px solid ${T.glassBorder}`, background: "var(--sf1)", color: T.sub, fontSize: 17 }}>‹</button>
+
+        <div style={{ textAlign: "center", margin: "10px 0 22px" }}>
+          <Logo size={56} />
+          <div className="pa-display" style={{ fontSize: 21, fontWeight: 700, color: T.text, marginTop: 13 }}>
+            {mode === "login" ? "Witaj ponownie" : "Załóż konto"}
+          </div>
+          <div className="pa-body" style={{ fontSize: 12, color: T.sub, marginTop: 4 }}>
+            {mode === "login" ? "Twoje dane czekają w chmurze" : "Dane bezpieczne, dostępne na każdym urządzeniu"}
+          </div>
         </div>
 
-        {/* zakładki */}
-        <div style={{ display: "flex", background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.09)", borderRadius: 999, padding: 4, marginBottom: 18 }}>
+        <div style={{ display: "flex", background: "var(--sf1)", border: `1px solid ${T.glassBorderSoft}`, borderRadius: 999, padding: 4, marginBottom: 20 }}>
           {[["login", "Logowanie"], ["register", "Rejestracja"]].map(([id, lbl]) => (
             <button key={id} className="pa-press pa-body" onClick={() => { setMode(id); setErr(""); setInfo(""); }}
               style={{ flex: 1, padding: "9px 0", borderRadius: 999, border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 700,
                 background: mode === id ? `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})` : "none",
-                color: mode === id ? "#06251A" : T.sub, transition: "all 200ms ease" }}>{lbl}</button>
+                color: mode === id ? "#06251A" : T.sub, transition: `all 240ms ${T.easeOut}` }}>{lbl}</button>
           ))}
         </div>
 
         {mode === "register" && (
-          <div style={{ marginBottom: 13 }}>
+          <div className="pa-fade" style={{ marginBottom: 13 }}>
             <label className="pa-body" style={label}>Imię (opcjonalnie)</label>
             <input className="pa-body" style={inputSt} value={name} placeholder="Jan" onChange={(e) => setName(e.target.value)} autoComplete="given-name" />
           </div>
         )}
         <div style={{ marginBottom: 13 }}>
           <label className="pa-body" style={label}>E-mail</label>
-          <input className="pa-body" style={inputSt} type="email" inputMode="email" value={email} placeholder="jan@example.com" onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+          <input className="pa-body" style={inputSt} type="email" inputMode="email" value={email} placeholder="jan@example.com"
+            onChange={(e) => setEmail(e.target.value)} autoComplete="email" onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
         </div>
         <div style={{ marginBottom: 6 }}>
           <label className="pa-body" style={label}>Hasło</label>
-          <input className="pa-body" style={inputSt} type="password" value={pass} placeholder={mode === "register" ? "min. 6 znaków" : "••••••••"} onChange={(e) => setPass(e.target.value)}
-            autoComplete={mode === "register" ? "new-password" : "current-password"}
-            onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
+          <div style={{ position: "relative" }}>
+            <input className="pa-body" style={{ ...inputSt, paddingRight: 52 }} type={showPass ? "text" : "password"} value={pass}
+              placeholder={mode === "register" ? "min. 6 znaków" : "••••••"} onChange={(e) => setPass(e.target.value)}
+              autoComplete={mode === "register" ? "new-password" : "current-password"}
+              onKeyDown={(e) => { if (e.key === "Enter") submit(); }} />
+            <button className="pa-press pa-body" type="button" onClick={() => setShowPass((v) => !v)}
+              style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", padding: "7px 9px", borderRadius: 9,
+                border: "none", background: "none", color: T.faint, fontSize: 15, cursor: "pointer" }}
+              title={showPass ? "Ukryj hasło" : "Pokaż hasło"}>{showPass ? "🙈" : "👁️"}</button>
+          </div>
         </div>
 
-        {err && <div className="pa-body pa-fade" style={{ fontSize: 12, color: T.danger, background: "rgba(230,118,109,.1)", border: "1px solid rgba(230,118,109,.3)", borderRadius: 11, padding: "9px 12px", marginTop: 8 }}>{err}</div>}
-        {info && <div className="pa-body pa-fade" style={{ fontSize: 12, color: "#7EE8C4", background: "rgba(45,212,160,.1)", border: "1px solid rgba(45,212,160,.3)", borderRadius: 11, padding: "9px 12px", marginTop: 8 }}>{info}</div>}
+        {err && <div className="pa-body pa-fade" style={{ fontSize: 12, color: T.danger, background: "rgba(230,118,109,.1)", border: "1px solid rgba(230,118,109,.3)", borderRadius: 12, padding: "10px 12px", marginTop: 12, lineHeight: 1.5 }}>{err}</div>}
+        {info && <div className="pa-body pa-fade" style={{ fontSize: 12, color: "#0E7A5A", background: "rgba(45,212,160,.12)", border: "1px solid rgba(45,212,160,.32)", borderRadius: 12, padding: "10px 12px", marginTop: 12, lineHeight: 1.5 }}>{info}</div>}
 
         <button className="pa-press pa-display" onClick={submit} disabled={busy}
-          style={{ width: "100%", marginTop: 16, padding: "14px 0", borderRadius: 14, border: "none", cursor: "pointer", fontSize: 14.5, fontWeight: 700,
-            background: `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})`, color: "#06251A", boxShadow: `0 8px 24px ${T.mint}38, inset 0 1px 0 rgba(255,255,255,.35)`, opacity: busy ? 0.6 : 1 }}>
+          style={{ width: "100%", marginTop: 16, padding: "14px 0", borderRadius: 15, border: "none", cursor: "pointer", fontSize: 14.5, fontWeight: 700,
+            background: `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})`, color: "#06251A", boxShadow: `0 8px 24px ${T.mint}38`, opacity: busy ? 0.65 : 1 }}>
           {busy ? "Chwileczkę…" : mode === "login" ? "Zaloguj się" : "Utwórz konto"}
         </button>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "16px 0" }}>
-          <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,.09)" }} />
+          <div style={{ flex: 1, height: 1, background: "var(--sf3)" }} />
           <span className="pa-body" style={{ fontSize: 10.5, color: T.faint }}>LUB</span>
-          <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,.09)" }} />
+          <div style={{ flex: 1, height: 1, background: "var(--sf3)" }} />
         </div>
 
         <button className="pa-press pa-body" onClick={google} disabled={busy}
-          style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: "1px solid rgba(255,255,255,.16)", background: "#fff", color: "#1F2937", fontSize: 13.5, fontWeight: 700, cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 9, opacity: busy ? 0.6 : 1 }}>
-          <svg width="17" height="17" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6 29.4 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3l5.7-5.7C34.3 6 29.4 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.3 0-9.7-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.6l6.2 5.2C41 35.4 44 30.2 44 24c0-1.3-.1-2.6-.4-3.9z"/></svg>
+          style={{ width: "100%", padding: "12px 0", borderRadius: 14, border: "1px solid rgba(var(--ovc),.16)", background: "#fff", color: "#1F2937",
+            fontSize: 13.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 9, opacity: busy ? 0.6 : 1 }}>
+          <svg width="17" height="17" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.1 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.7-.4-3.9z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.1 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.3 0-9.7-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.1-4.1 5.6l6.2 5.2C36.9 40.2 44 35 44 24c0-1.3-.1-2.7-.4-3.9z"/></svg>
           Kontynuuj z Google
         </button>
 
-        <div style={{ flex: 1 }} />
+        <div style={{ flex: 1, minHeight: 14 }} />
         <button className="pa-press pa-body" onClick={onGuest}
-          style={{ marginTop: 22, background: "none", border: "none", color: T.faint, fontSize: 12.5, fontWeight: 600, cursor: "pointer", textAlign: "center", width: "100%" }}>
+          style={{ background: "none", border: "none", color: T.faint, fontSize: 12.5, fontWeight: 600, cursor: "pointer", padding: "8px 0" }}>
           Kontynuuj bez konta <span style={{ color: T.mint }}>→</span>
         </button>
-        <div className="pa-body" style={{ fontSize: 10, color: T.faint, textAlign: "center", marginTop: 8, lineHeight: 1.5 }}>
-          Bez konta dane pozostają tylko na tym urządzeniu.
-        </div>
       </div>
     </div>
   );
@@ -1408,30 +1704,30 @@ function QuickAddSheet({ onSubmit, onClose }) {
   const [cat, setCat] = useState("jedzenie_inne");
   const [err, setErr] = useState("");
   const touchY = useRef(null);
-  const fieldStyle = { width: "100%", padding: "11px 12px", borderRadius: 12, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.04)", fontSize: 13.5, color: T.text, boxSizing: "border-box" };
+  const fieldStyle = { width: "100%", padding: "11px 12px", borderRadius: 12, border: "1px solid rgba(var(--ovc),.08)", background: "var(--sf1)", fontSize: 13.5, color: T.text, boxSizing: "border-box" };
   const submit = () => {
     const n = Number(String(amount).replace(",", ".").replace(/\s/g, ""));
     if (!(n > 0)) { setErr("Podaj kwotę większą od zera"); return; }
     onSubmit({ store, date: date || todayKey(), amount: Math.round(n * 100) / 100, category: cat });
   };
   return (
-    <div className="pa-dim" onClick={onClose} style={{ position: "absolute", inset: 0, background: "rgba(4,10,7,.62)", backdropFilter: "blur(3px)", zIndex: 65, display: "flex", alignItems: "flex-end" }}>
+    <div className="pa-dim" onClick={onClose} style={{ position: "absolute", inset: 0, background: "var(--c-dim)", backdropFilter: "blur(3px)", zIndex: 65, display: "flex", alignItems: "flex-end" }}>
       <div className="pa-sheet pa-scroll" onClick={(e) => e.stopPropagation()}
         onTouchStart={(e) => { touchY.current = e.touches[0].clientY; }}
         onTouchMove={(e) => { if (touchY.current !== null && e.touches[0].clientY - touchY.current > 70) { touchY.current = null; onClose(); } }}
         onTouchEnd={() => { touchY.current = null; }}
-        style={{ background: "#13241C", border: "1px solid rgba(255,255,255,.08)", borderBottom: "none", width: "100%", borderRadius: "22px 22px 0 0", padding: "14px 18px calc(26px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -16px 50px rgba(0,0,0,.5)", maxHeight: "88%", boxSizing: "border-box" }}>
-        <div style={{ width: 38, height: 4, background: "rgba(255,255,255,.16)", borderRadius: 2, margin: "0 auto 12px" }} />
+        style={{ background: "var(--c-surface)", border: "1px solid rgba(var(--ovc),.08)", borderBottom: "none", width: "100%", borderRadius: "22px 22px 0 0", padding: "14px 18px calc(26px + env(safe-area-inset-bottom, 0px))", boxShadow: "0 -16px 50px var(--sh2)", maxHeight: "88%", boxSizing: "border-box" }}>
+        <div style={{ width: 38, height: 4, background: "var(--sf3)", borderRadius: 2, margin: "0 auto 12px" }} />
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div className="pa-display" style={{ fontSize: 16.5, fontWeight: 600, color: T.text }}>⚡ Szybki wydatek</div>
           <button className="pa-press" onClick={onClose}
-            style={{ width: 28, height: 28, borderRadius: 9, border: "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.05)", color: T.sub, fontSize: 13, cursor: "pointer" }}>✕</button>
+            style={{ width: 28, height: 28, borderRadius: 9, border: "1px solid rgba(var(--ovc),.1)", background: "var(--sf1)", color: T.sub, fontSize: 13, cursor: "pointer" }}>✕</button>
         </div>
         <div style={{ textAlign: "center", marginBottom: 14 }}>
           <input type="text" inputMode="decimal" autoFocus value={amount} placeholder="0,00"
             onChange={(e) => { setAmount(e.target.value); if (err) setErr(""); }}
             className="pa-mono" style={{ width: 180, textAlign: "center", fontSize: 28, fontWeight: 600, padding: "10px 12px", borderRadius: 14,
-              border: err ? `1.5px solid ${T.danger}` : "1px solid rgba(255,255,255,.1)", background: "rgba(255,255,255,.04)", color: T.text, boxSizing: "border-box" }} />
+              border: err ? `1.5px solid ${T.danger}` : "1px solid rgba(var(--ovc),.1)", background: "var(--sf1)", color: T.text, boxSizing: "border-box" }} />
           <div className="pa-body" style={{ fontSize: 11, color: T.faint, marginTop: 5 }}>kwota w zł</div>
           {err && <div className="pa-body" style={{ fontSize: 11.5, color: T.danger, marginTop: 6, fontWeight: 600 }}>{err}</div>}
         </div>
@@ -1439,10 +1735,10 @@ function QuickAddSheet({ onSubmit, onClose }) {
           <div>
             <label className="pa-body" style={{ display: "block", fontSize: 10, fontWeight: 600, color: T.faint, textTransform: "uppercase", letterSpacing: ".09em", marginBottom: 5 }}>Sklep</label>
             <select value={store} onChange={(e) => setStore(e.target.value)} className="pa-body" style={fieldStyle}>
-              {store && !STORES.includes(store) && <option value={store} style={{ background: "#13241C" }}>{store}</option>}
+              {store && !STORES.includes(store) && <option value={store} style={{ background: "var(--c-surface)" }}>{store}</option>}
               {STORE_GROUPS.map((g) => (
                 <optgroup key={g.label} label={g.label}>
-                  {g.stores.map((s) => <option key={s} style={{ background: "#13241C" }}>{s}</option>)}
+                  {g.stores.map((s) => <option key={s} style={{ background: "var(--c-surface)" }}>{s}</option>)}
                 </optgroup>
               ))}
             </select>
@@ -1454,7 +1750,7 @@ function QuickAddSheet({ onSubmit, onClose }) {
           <div>
             <label className="pa-body" style={{ display: "block", fontSize: 10, fontWeight: 600, color: T.faint, textTransform: "uppercase", letterSpacing: ".09em", marginBottom: 5 }}>Kategoria</label>
             <select value={cat} onChange={(e) => setCat(e.target.value)} className="pa-body" style={fieldStyle}>
-              {CATEGORIES.map((c) => <option key={c.slug} value={c.slug} style={{ background: "#13241C" }}>{c.icon} {c.name}</option>)}
+              {CATEGORIES.map((c) => <option key={c.slug} value={c.slug} style={{ background: "var(--c-surface)" }}>{c.icon} {c.name}</option>)}
             </select>
           </div>
         </div>
@@ -1481,7 +1777,7 @@ function ProcessingView({ preview }) {
           <div key={i} className="pa-ring-pulse" style={{ inset: 22, animationDelay: `${i * 1200}ms` }} />
         ))}
         {/* paragon */}
-        <div className="pa-float" style={{ position: "relative", width: 116, height: 152, borderRadius: 12, overflow: "hidden", background: T.paper, boxShadow: `0 18px 50px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.1), 0 0 34px ${T.mint}30` }}>
+        <div className="pa-float" style={{ position: "relative", width: 116, height: 152, borderRadius: 12, overflow: "hidden", background: T.paper, boxShadow: `0 18px 50px var(--sh2), 0 0 0 1px rgba(var(--ovc),.1), 0 0 34px ${T.mint}30` }}>
           {preview ? <img src={preview} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             : <div className="pa-shimmer" style={{ width: "100%", height: "100%" }} />}
           <div className="pa-scan" style={{ position: "absolute", left: -6, right: -6, top: 14, height: 2.5, background: T.mint, boxShadow: `0 0 22px 6px ${T.mint}88` }} />
@@ -1497,7 +1793,7 @@ function ProcessingView({ preview }) {
       <div className="pa-body" style={{ marginTop: 7, fontSize: 12, color: T.faint }}>Sztuczna inteligencja czyta zdjęcie · zwykle 5–10 sekund</div>
       <div style={{ display: "flex", gap: 5, marginTop: 18 }}>
         {PROCESSING_STEPS.map((_, i) => (
-          <div key={i} style={{ width: i === step ? 18 : 6, height: 6, borderRadius: 3, background: i === step ? T.mint : "rgba(255,255,255,.14)", transition: `all 250ms ${T.easeOut}` }} />
+          <div key={i} style={{ width: i === step ? 18 : 6, height: 6, borderRadius: 3, background: i === step ? T.mint : "rgba(var(--ovc),.14)", transition: `all 250ms ${T.easeOut}` }} />
         ))}
       </div>
     </div>
@@ -1510,6 +1806,7 @@ function ParagonAIInner() {
   const [plan, setPlan] = useState(null);           // {tier, trialEndsAt?, members?[]}
   const [profile, setProfile] = useState({ name: "", email: "" });
   const [settings, setSettings] = useState({ push: true, budget: true, weekly: true });
+  const [themePref, setThemePref] = useState("dark"); // preferencja URZĄDZENIA — poza synchronizacją
   const [quota, setQuota] = useState({ month: nowMonth(), used: 0 });
   const [budget, setBudget] = useState(null);
   const [budgets, setBudgets] = useState({});
@@ -1531,7 +1828,14 @@ function ParagonAIInner() {
   const [lvlInfo, setLvlInfo] = useState(null); // podgląd węzła ścieżki (dymek)
   const [achOpen, setAchOpen] = useState(null); // otwarte kategorie (null = auto)
   const [achDates, setAchDates] = useState({}); // id osiągnięcia -> timestamp odebrania
-  const [bonusScans, setBonusScans] = useState(0); // darmowe skany z nagród (ponad limit planu)
+  const [bonusScans, setBonusScans] = useState(0);
+  /* ---- ekonomia: Ziarna 🌱 ---- */
+  const [seeds, setSeeds] = useState(0);
+  const [freezes, setFreezes] = useState(0);        // posiadane ochrony serii
+  const [freezeDays, setFreezeDays] = useState([]); // dni uratowane ochroną (znaczniki czasu)
+  const [seedWeeks, setSeedWeeks] = useState([]);   // tygodnie już rozliczone (bonus za budżet)
+  const [themesOwned, setThemesOwned] = useState([]);
+  const [claimedStreaks, setClaimedStreaks] = useState([]); // odebrane kamienie milowe serii // darmowe skany z nagród (ponad limit planu)
   const [session, setSession] = useState(null);
   const [authChecked, setAuthChecked] = useState(!AUTH_ENABLED);
   const [guest, setGuest] = useState(false); // "kontynuuj bez konta"
@@ -1617,7 +1921,7 @@ function ParagonAIInner() {
   const applyState = (st) => {
     setReceipts(st.receipts || []);
     setProfile(st.profile || { name: "", email: "" });
-    setSettings(st.settings || { push: true, budget: true, weekly: true });
+    setSettings({ push: true, budget: true, weekly: true, ...(st.settings || {}) });
     setQuota(st.quota && st.quota.month === nowMonth() ? st.quota : { month: nowMonth(), used: 0 });
     setPlan(st.plan && st.plan.tier && st.plan.tier !== "trial" ? st.plan : { tier: "free" });
     setBudget(typeof st.budget === "number" && st.budget > 0 ? st.budget : null);
@@ -1632,6 +1936,12 @@ function ParagonAIInner() {
     setClaimedLvls(Array.isArray(st.claimedLvls) ? st.claimedLvls : []);
     setAchDates(st.achDates && typeof st.achDates === "object" ? st.achDates : {});
     setBonusScans(typeof st.bonusScans === "number" && st.bonusScans > 0 ? Math.floor(st.bonusScans) : 0);
+    setSeeds(Math.max(0, Math.floor(Number(st.seeds) || 0)));
+    setFreezes(Math.max(0, Math.min(2, Math.floor(Number(st.freezes) || 0))));
+    setFreezeDays(Array.isArray(st.freezeDays) ? st.freezeDays.filter((t) => typeof t === "number" && t > 0) : []);
+    setSeedWeeks(Array.isArray(st.seedWeeks) ? st.seedWeeks.filter((w) => typeof w === "string") : []);
+    setThemesOwned(Array.isArray(st.themesOwned) ? st.themesOwned.filter((t) => typeof t === "string") : []);
+    setClaimedStreaks(Array.isArray(st.claimedStreaks) ? st.claimedStreaks.filter((n) => typeof n === "number") : []);
   };
   useEffect(() => {
     if (!authChecked) return;
@@ -1714,7 +2024,7 @@ function ParagonAIInner() {
       const { error: e2 } = await supabase.from("household_members").insert({ household_id: hh.id, user_id: session.user.id, name: profile.name || "Ja" });
       if (e2) throw e2;
       // przenosimy obecny stan konta jako startowy stan rodziny
-      const snapshot = { receipts, plan, profile, settings, quota, budget, budgets, goals, income, onboarded, tutorialDone, challenges, claimedAch, seenAch, claimedLvls, achDates, bonusScans };
+      const snapshot = { receipts, plan, profile, settings, quota, budget, budgets, goals, income, onboarded, tutorialDone, challenges, claimedAch, seenAch, claimedLvls, achDates, bonusScans, seeds, freezes, freezeDays, seedWeeks, themesOwned, claimedStreaks };
       await supabase.from("household_state").upsert({ household_id: hh.id, state: snapshot, updated_at: new Date().toISOString() });
       await refreshHousehold();
       showToast("Rodzina założona 🎉");
@@ -1787,7 +2097,7 @@ function ParagonAIInner() {
   const syncTimer = useRef(null);
   useEffect(() => {
     if (!loaded) return;
-    const snapshot = { receipts, plan, profile, settings, quota, budget, budgets, goals, income, onboarded, tutorialDone, challenges, claimedAch, seenAch, claimedLvls, achDates, bonusScans };
+    const snapshot = { receipts, plan, profile, settings, quota, budget, budgets, goals, income, onboarded, tutorialDone, challenges, claimedAch, seenAch, claimedLvls, achDates, bonusScans, seeds, freezes, freezeDays, seedWeeks, themesOwned, claimedStreaks };
     (async () => {
       try { await store.set("paragon-state", JSON.stringify(snapshot)); }
       catch (e) { console.error(e); }
@@ -1804,7 +2114,7 @@ function ParagonAIInner() {
         syncTimer.current = null;
       }, 1200);
     }
-  }, [receipts, plan, profile, settings, quota, budget, budgets, goals, income, onboarded, tutorialDone, challenges, claimedAch, seenAch, claimedLvls, achDates, bonusScans, loaded, session?.user?.id, household?.id]);
+  }, [receipts, plan, profile, settings, quota, budget, budgets, goals, income, onboarded, tutorialDone, challenges, claimedAch, seenAch, claimedLvls, achDates, bonusScans, seeds, freezes, freezeDays, seedWeeks, themesOwned, claimedStreaks, loaded, session?.user?.id, household?.id]);
 
   useEffect(() => {
     if (!AUTH_ENABLED || !household?.id || !loaded) return;
@@ -1820,6 +2130,37 @@ function ParagonAIInner() {
     const iv = setInterval(pull, 45000); // co 45 s, gdy apka otwarta
     return () => { document.removeEventListener("visibilitychange", pull); clearInterval(iv); };
   }, [household?.id, loaded]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const r = await store.get("paragon-theme");
+      if (alive && r?.value && ["dark", "light", "auto", "gold", "navy"].includes(r.value)) setThemePref(r.value);
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    const mq = typeof window !== "undefined" && window.matchMedia ? window.matchMedia("(prefers-color-scheme: light)") : null;
+    const apply = () => {
+      const mode = themePref === "auto" ? (mq && mq.matches ? "light" : "dark") : themePref;
+      const isLight = mode === "light";
+      try {
+        document.documentElement.dataset.paTheme = mode;
+        document.documentElement.style.colorScheme = isLight ? "light" : "dark";
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute("content", { light: "#EFF4F0", gold: "#14100A", navy: "#0A1020" }[mode] || "#0A1410");
+        document.body.style.background = { light: "#EFF4F0", gold: "#14100A", navy: "#0A1020" }[mode] || "#0A1410";
+      } catch (e) { /* nic */ }
+    };
+    apply();
+    store.set("paragon-theme", themePref);
+    if (themePref === "auto" && mq) {
+      mq.addEventListener?.("change", apply);
+      return () => mq.removeEventListener?.("change", apply);
+    }
+    return undefined;
+  }, [themePref]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2400); };
 
@@ -1926,7 +2267,8 @@ function ParagonAIInner() {
     const items = draft.items.map((i) => ({ ...i, total_price: Math.round((Number(String(i.total_price).replace(",", ".")) || 0) * 100) / 100 }));
     const total = items.length ? Math.round(items.reduce((s, i) => s + i.total_price, 0) * 100) / 100 : Number(draft.total) || 0;
     const rec = { ...draft, items, total, memberId: draft.memberId || members[0]?.id };
-    setReceipts((rs) => [rec, ...rs]);
+    setReceipts((rs) => [rec, ...rs.filter((r) => !r.sample)]);
+    addSeeds(SEED_SCAN);
     if (rec.scanned && tierLimit !== null) {
       const usedNow = quota.month === nowMonth() ? quota.used : 0;
       if (usedNow >= tierLimit && bonusScans > 0) { setBonusScans((b) => Math.max(b - 1, 0)); showToast(`Użyto bonusowego skanu · zostało ${bonusScans - 1} 🎁`); }
@@ -1969,7 +2311,74 @@ function ParagonAIInner() {
   const allTotal = useMemo(() => receipts.reduce((s, r) => s + (Number(r.total) || 0), 0), [receipts]);
   const totalSavedAll = useMemo(() => goals.reduce((s, g) => s + (Number(g.saved) || 0), 0), [goals]);
   const curMonthSpent = useMemo(() => receipts.filter((r) => monthKey(r.date) === nowMonth()).reduce((s, r) => s + (Number(r.total) || 0), 0), [receipts]);
-  const streak = useMemo(() => computeStreak(receipts), [receipts]);
+  const streak = useMemo(() => computeStreak(receipts, freezeDays), [receipts, freezeDays]);
+  const realReceipts = useMemo(() => receipts.filter((r) => !r.sample), [receipts]);
+  const realStreak = useMemo(() => computeStreak(realReceipts, freezeDays), [realReceipts, freezeDays]);
+  const hasSample = realReceipts.length !== receipts.length;
+  const sTier = streakTier(realStreak);          // 🔥 próg serii
+  const sNext = streakNext(realStreak);
+  const seedMult = sTier.mult;                   // mnożnik WSZYSTKICH Ziaren
+  const addSeeds = (n) => setSeeds((v) => v + Math.round(n * seedMult));
+
+  /* 🧊 ochrona serii: gdy wczoraj wypadło, a masz ochronę — zużyj ją i uratuj passę */
+  useEffect(() => {
+    if (!loaded || freezes <= 0) return;
+    const d0 = new Date(); d0.setHours(0, 0, 0, 0);
+    const today = d0.getTime();
+    const yest = today - 864e5;
+    const dayOf = (r) => { const d = new Date(r.createdAt || 0); d.setHours(0, 0, 0, 0); return d.getTime(); };
+    const days = new Set(realReceipts.map(dayOf).filter((t) => t > 0));
+    if (!days.size) return;
+    if (days.has(yest) || freezeDays.includes(yest)) return;   // wczoraj jest pokryte
+    const last = Math.max(...days);
+    if (last !== yest - 864e5) return;                          // ratujemy tylko świeżą przerwę (przedwczoraj)
+    setFreezes((f) => Math.max(0, f - 1));
+    setFreezeDays((arr) => [...arr, yest].slice(-30));
+    showToast("🧊 Ochrona serii uratowała Twoją passę!");
+    navigator.vibrate?.([25, 60, 25]);
+  }, [loaded, freezes, freezeDays, realReceipts]);
+
+  /* 🔥 kamienie milowe serii — jednorazowe prezenty */
+  useEffect(() => {
+    if (!loaded || realStreak <= 0) return;
+    const due = Object.keys(STREAK_GIFTS).map(Number).sort((x, y) => x - y)
+      .filter((d) => realStreak >= d && !claimedStreaks.includes(d));
+    if (!due.length) return;
+    const top = due[due.length - 1];
+    let sd = 0, fz = 0, pd = 0, ttl = null;
+    due.forEach((d) => { const g = STREAK_GIFTS[d];
+      sd += g.seeds || 0; fz += g.freeze || 0; pd += g.proDays || 0; if (g.title) ttl = g.title; });
+    setClaimedStreaks((arr) => [...arr, ...due]);
+    if (sd) setSeeds((v) => v + Math.round(sd * seedMult));
+    if (fz) setFreezes((f) => Math.min(2, f + fz));
+    if (pd) setPlan((p) => ({ ...p, proUntil: Math.max(p?.proUntil || 0, Date.now()) + pd * 864e5 }));
+    if (ttl) setProfile((p) => ({ ...p, title: ttl }));
+    const parts = [];
+    if (sd) parts.push(`+${Math.round(sd * seedMult)} 🌱`);
+    if (fz) parts.push(`+${fz} 🧊 ochrona`);
+    if (pd) parts.push(`+${pd} ${pd === 1 ? "dzień" : "dni"} Pro 👑`);
+    if (ttl) parts.push(`tytuł „${ttl}"`);
+    setCelebrate({ emoji: streakTier(top).emoji, title: `Seria ${top} dni!`,
+      badge: parts.join(" · "), tag: STREAK_GIFTS[top].msg });
+    navigator.vibrate?.([40, 70, 40, 70, 130]);
+  }, [loaded, realStreak, claimedStreaks, seedMult]);
+
+  /* 🌱 rozliczenie zakończonych tygodni: pod budżetem = nagroda */
+  useEffect(() => {
+    if (!loaded || !budget || budget <= 0) return;
+    const wkKey = (d) => { const t = new Date(d); const day = (t.getDay() + 6) % 7; t.setDate(t.getDate() - day); t.setHours(0,0,0,0); return t.toISOString().slice(0, 10); };
+    const nowWk = wkKey(new Date());
+    const weekly = budget / 4.345;                       // budżet miesięczny → tygodniowy
+    const spentBy = {};
+    realReceipts.forEach((r) => { const k = wkKey(r.date || r.createdAt); spentBy[k] = (spentBy[k] || 0) + (r.total || 0); });
+    const done = Object.keys(spentBy).filter((k) => k < nowWk && spentBy[k] <= weekly && !seedWeeks.includes(k));
+    if (!done.length) return;
+    setSeedWeeks((w) => [...w, ...done]);
+    const gain = Math.round(done.length * SEED_WEEK_BUDGET * seedMult);
+    setSeeds((v) => v + gain);
+    showToast(`🌱 +${gain} za tydzień pod budżetem!${seedMult > 1 ? ` (×${seedMult} od serii)` : ""}`);
+  }, [loaded, realReceipts, budget, seedWeeks]);
+
   const freeFunds = income != null ? Math.round((income - curMonthSpent - totalSavedAll) * 100) / 100 : null;
   const recurring = useMemo(() => (isPro ? analyzeRecurring(receipts) : []), [receipts, isPro]);
   const subs = useMemo(() => (isPro ? analyzeSubscriptions(receipts) : []), [receipts, isPro]);
@@ -1982,14 +2391,14 @@ function ParagonAIInner() {
   const primaryBtn = {
     background: `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})`, color: "#06251A", border: "none", borderRadius: 14,
     padding: "13px 24px", fontSize: 14, fontWeight: 700, cursor: "pointer",
-    boxShadow: `0 8px 24px ${T.mint}38, inset 0 1px 0 rgba(255,255,255,.35)`,
+    boxShadow: `0 8px 24px ${T.mint}38, inset 0 1px 0 rgba(var(--ovc),.35)`,
   };
   const lbl = { display: "block", fontSize: 10, fontWeight: 600, color: T.faint, textTransform: "uppercase", letterSpacing: ".09em", marginBottom: 5 };
-  const input = { width: "100%", padding: "10px 11px", borderRadius: 11, border: `1px solid ${T.glassBorder}`, background: "rgba(255,255,255,.04)", fontSize: 13.5, color: T.text, boxSizing: "border-box", transition: "border-color 150ms ease, box-shadow 150ms ease" };
+  const input = { width: "100%", padding: "10px 11px", borderRadius: 11, border: `1px solid ${T.glassBorder}`, background: "var(--sf1)", fontSize: 13.5, color: T.text, boxSizing: "border-box", transition: "border-color 150ms ease, box-shadow 150ms ease" };
   const card = { background: T.glass, border: `1px solid ${T.glassBorderSoft}`, borderRadius: 17 };
 
   const MonthNav = () => (
-    <div style={{ display: "flex", alignItems: "center", gap: 4, background: "rgba(255,255,255,.045)", border: "1px solid rgba(255,255,255,.09)", borderRadius: 999, padding: "3px 4px", boxShadow: "inset 0 1px 0 rgba(255,255,255,.05)" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 4, background: "var(--sf1)", border: "1px solid rgba(var(--ovc),.09)", borderRadius: 999, padding: "3px 4px", boxShadow: "inset 0 1px 0 rgba(var(--ovc),.05)" }}>
       <button className="pa-press" onClick={() => setMonth((m) => shiftMonth(m, -1))} style={navBtn}>‹</button>
       <div className="pa-display" style={{ fontSize: 13, fontWeight: 600, color: T.text, minWidth: 108, textAlign: "center", textTransform: "capitalize" }}>{monthLabel(month)}</div>
       <button className="pa-press" onClick={() => setMonth((m) => shiftMonth(m, 1))} style={navBtn}>›</button>
@@ -2043,7 +2452,7 @@ function ParagonAIInner() {
       {right}
     </div>
   );
-  const Divider = () => <div style={{ height: 1, background: "rgba(255,255,255,.055)", margin: "0 14px 0 58px" }} />;
+  const Divider = () => <div style={{ height: 1, background: "var(--sf2)", margin: "0 14px 0 58px" }} />;
   const SectionLabel = ({ children }) => (
     <div className="pa-body" style={{ fontSize: 10, fontWeight: 700, color: T.faint, textTransform: "uppercase", letterSpacing: ".11em", margin: "20px 6px 9px" }}>{children}</div>
   );
@@ -2071,7 +2480,7 @@ function ParagonAIInner() {
       {monthReceipts.length >= 3 && (
         <button className="pa-press pa-rise" onClick={() => setView({ name: "summary", mk: month })}
           style={{ width: "100%", textAlign: "left", marginBottom: 12, cursor: "pointer", position: "relative", overflow: "hidden",
-            borderRadius: 16, border: `1px solid ${T.mint}3A`, background: `linear-gradient(120deg, ${T.mint}18, rgba(255,255,255,.02))`, padding: "12px 14px" }}>
+            borderRadius: 16, border: `1px solid ${T.mint}3A`, background: `linear-gradient(120deg, ${T.mint}18, rgba(var(--ovc),.02))`, padding: "12px 14px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
             <div style={{ width: 36, height: 36, borderRadius: 11, background: `${T.mint}1E`, border: `1px solid ${T.mint}50`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 17 }}>📊</div>
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -2086,8 +2495,8 @@ function ParagonAIInner() {
       {/* Wyzwania oszczędnościowe */}
       <button className="pa-press pa-rise" onClick={() => setView({ name: "challenges" })}
         style={{ width: "100%", textAlign: "left", marginBottom: 12, cursor: "pointer", position: "relative", overflow: "hidden",
-          borderRadius: 16, border: `1px solid ${chActive.length ? T.gold + "45" : "rgba(255,255,255,.09)"}`,
-          background: chActive.length ? `linear-gradient(120deg, ${T.gold}14, rgba(255,255,255,.02))` : T.glass, padding: "12px 14px" }}>
+          borderRadius: 16, border: `1px solid ${chActive.length ? T.gold + "45" : "rgba(var(--ovc),.09)"}`,
+          background: chActive.length ? `linear-gradient(120deg, ${T.gold}14, rgba(var(--ovc),.02))` : T.glass, padding: "12px 14px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
           <div style={{ width: 36, height: 36, borderRadius: 11, background: `${T.gold}18`, border: `1px solid ${T.gold}45`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 17 }}>
             {chActive.length ? chActive[0].tpl.emoji : "🏆"}
@@ -2100,7 +2509,7 @@ function ParagonAIInner() {
               <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 6 }}>
                 {chActive.slice(0, 2).map((c) => (
                   <div key={c.tplId} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ flex: 1, height: 4, background: "rgba(255,255,255,.08)", borderRadius: 2, overflow: "hidden" }}>
+                    <div style={{ flex: 1, height: 4, background: "var(--sf2)", borderRadius: 2, overflow: "hidden" }}>
                       <div style={{ height: "100%", width: `${Math.min(Math.max((c.ev?.pct || 0) * 100, 4), 100)}%`, borderRadius: 2, background: T.gold }} />
                     </div>
                     <span className="pa-mono" style={{ fontSize: 9.5, color: T.faint, flexShrink: 0 }}>{c.ev?.label}</span>
@@ -2121,7 +2530,7 @@ function ParagonAIInner() {
             <span className="pa-body" style={{ fontSize: 11.5, color: T.sub, fontWeight: 600 }}>Skany AI w tym miesiącu {effTier === "free" && <span style={{ color: T.faint }}>· plan Free</span>}</span>
             <span className="pa-mono" style={{ fontSize: 11.5, color: quota.used >= tierLimit && !bonusScans ? T.danger : T.text }}>{quota.used}/{tierLimit}{bonusScans > 0 && <span style={{ color: T.gold }}> +{bonusScans} 🎁</span>}</span>
           </div>
-          <div style={{ height: 5, background: "rgba(255,255,255,.07)", borderRadius: 3, overflow: "hidden" }}>
+          <div style={{ height: 5, background: "var(--sf2)", borderRadius: 3, overflow: "hidden" }}>
             <div style={{ height: "100%", width: `${Math.min((quota.used / tierLimit) * 100, 100)}%`, borderRadius: 3,
               background: quota.used >= tierLimit ? T.danger : quota.used >= tierLimit * 0.8 ? T.warn : `linear-gradient(90deg, ${T.mint}, ${T.mintDeep})`, transition: `width 400ms ${T.easeOut}` }} />
           </div>
@@ -2153,7 +2562,7 @@ function ParagonAIInner() {
                   {left >= 0 ? `zostało ${zl(left)}` : `przekroczony o ${zl(-left)}`}
                 </span>
               </div>
-              <div style={{ height: 6, background: "rgba(255,255,255,.07)", borderRadius: 3, overflow: "hidden" }}>
+              <div style={{ height: 6, background: "var(--sf2)", borderRadius: 3, overflow: "hidden" }}>
                 <div style={{ height: "100%", width: `${Math.max(pct * 100, 2)}%`, borderRadius: 3, background: left < 0 ? T.danger : `linear-gradient(90deg, ${col}, ${col}99)`, transition: `width 500ms ${T.easeOut}` }} />
               </div>
               <div className="pa-body" style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: T.faint, marginTop: 6 }}>
@@ -2166,7 +2575,7 @@ function ParagonAIInner() {
               title: "Ustaw budżet miesięczny", fields: [{ key: "amount", label: "Kwota budżetu (zł)", placeholder: "3000" }], submitLabel: "Zapisz budżet",
               onSubmit: (v) => { const n = Number(String(v.amount).replace(",", ".").replace(/\s/g, "")); if (n > 0) { setBudget(Math.round(n * 100) / 100); showToast("Budżet zapisany ✓"); } setInputSheet(null); },
             })}
-            style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, background: "none", border: `1.5px dashed rgba(255,255,255,.16)`, borderRadius: 14, padding: "12px 14px", marginBottom: 12, cursor: "pointer", textAlign: "left" }}>
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, background: "none", border: `1.5px dashed rgba(var(--ovc),.16)`, borderRadius: 14, padding: "12px 14px", marginBottom: 12, cursor: "pointer", textAlign: "left" }}>
             <span style={{ fontSize: 15 }}>🎯</span>
             <span className="pa-body" style={{ flex: 1, fontSize: 12.5, color: T.sub, fontWeight: 500 }}>Ustaw budżet miesięczny — zobaczysz, ile Ci zostało</span>
             <span style={{ color: T.mint, fontSize: 16 }}>+</span>
@@ -2182,7 +2591,7 @@ function ParagonAIInner() {
       )}
 
       {receipts.length === 0 ? (
-        <div className="pa-rise" style={{ background: `linear-gradient(160deg, rgba(255,255,255,.05), rgba(255,255,255,.02))`, border: `1px solid ${T.glassBorder}`, borderRadius: 22, padding: "38px 24px", textAlign: "center" }}>
+        <div className="pa-rise" style={{ background: `linear-gradient(160deg, rgba(var(--ovc),.05), rgba(var(--ovc),.02))`, border: `1px solid ${T.glassBorder}`, borderRadius: 22, padding: "38px 24px", textAlign: "center" }}>
           <div style={{ width: 72, height: 72, margin: "0 auto", borderRadius: 22, background: `linear-gradient(145deg, ${T.mint}22, ${T.mint}08)`, border: `1px solid ${T.mint}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 34 }}>🧾</div>
           <div className="pa-display" style={{ fontSize: 17, fontWeight: 600, margin: "16px 0 7px", color: T.text }}>Zacznij od pierwszego paragonu</div>
           <div className="pa-body" style={{ fontSize: 13, color: T.sub, marginBottom: 22, lineHeight: 1.55 }}>Sfotografuj paragon, a pokażemy Ci,<br />gdzie uciekają pieniądze.</div>
@@ -2196,23 +2605,49 @@ function ParagonAIInner() {
         </div>
       ) : (
         <>
+          {hasSample && (
+            <div className="pa-fade" style={{ marginBottom: 13, padding: "13px 14px 12px", borderRadius: 18,
+              background: "var(--sf1)", border: `1px dashed ${T.mint}55`, boxShadow: `0 6px 20px ${T.mint}12` }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 11 }}>
+                <span style={{ fontSize: 17, flexShrink: 0, marginTop: -1 }}>👀</span>
+                <div style={{ minWidth: 0 }}>
+                  <div className="pa-display" style={{ fontSize: 13, fontWeight: 700, color: T.text }}>To są dane pokazowe</div>
+                  <div className="pa-body" style={{ fontSize: 10.8, color: T.faint, marginTop: 2.5, lineHeight: 1.5 }}>
+                    Pokazują, jak działa aplikacja. <b style={{ color: T.sub }}>Nie liczą się do osiągnięć</b> — zacznij od własnego paragonu.
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="pa-press pa-display" onClick={() => { setReceipts((rs) => rs.filter((r) => !r.sample)); startScan(); }}
+                  style={{ flex: 1, padding: "11px 0", borderRadius: 13, border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 700,
+                    background: `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})`, color: "#06251A", boxShadow: `0 6px 18px ${T.mint}33` }}>
+                  📷 Skanuj swój paragon
+                </button>
+                <button className="pa-press pa-body" onClick={() => { setReceipts((rs) => rs.filter((r) => !r.sample)); showToast("Usunięto dane pokazowe"); }}
+                  style={{ flexShrink: 0, padding: "11px 14px", borderRadius: 13, cursor: "pointer", fontSize: 12.5, fontWeight: 600,
+                    border: `1px solid ${T.glassBorder}`, background: "var(--sf2)", color: T.sub }}>
+                  Usuń
+                </button>
+              </div>
+            </div>
+          )}
           <div ref={tutHeroRef} className="pa-rise pa-sheen" style={{ position: "relative", borderRadius: 26, overflow: "hidden",
-            background: `linear-gradient(150deg, #17503F 0%, #0F3A2B 42%, #0A2A1F 100%)`,
-            border: "1px solid rgba(255,255,255,.11)", boxShadow: "0 26px 64px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.14)", padding: "18px 18px 16px" }}>
+            background: "var(--c-hero)",
+            border: "1px solid rgba(var(--ovc),.11)", boxShadow: "0 26px 64px var(--sh2), inset 0 1px 0 rgba(var(--ovc),.14)", padding: "18px 18px 16px" }}>
             <div style={{ position: "absolute", top: -80, right: -60, width: 240, height: 240, borderRadius: "50%", background: `radial-gradient(circle, ${T.mint}32, transparent 66%)`, pointerEvents: "none" }} />
             <div style={{ position: "absolute", bottom: -100, left: -70, width: 250, height: 250, borderRadius: "50%", background: "radial-gradient(circle, rgba(216,184,120,.12), transparent 66%)", pointerEvents: "none" }} />
 
             {/* nagłówek + kwota */}
             <div style={{ position: "relative", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
               <div style={{ minWidth: 0 }}>
-                <div className="pa-mono" style={{ fontSize: 9, letterSpacing: ".15em", color: "rgba(255,255,255,.5)" }}>WYDANE · {monthLabel(month).split(" ")[0].toUpperCase()}</div>
-                <div className="pa-display" style={{ fontSize: 36, fontWeight: 700, color: "#fff", lineHeight: 1.1, marginTop: 5, letterSpacing: "-.02em", whiteSpace: "nowrap" }}>
-                  {num(heroAmount)} <span style={{ fontSize: 17, fontWeight: 600, color: "rgba(255,255,255,.55)" }}>zł</span>
+                <div className="pa-mono" style={{ fontSize: 9, letterSpacing: ".15em", color: "rgba(var(--ovc),.5)" }}>WYDANE · {monthLabel(month).split(" ")[0].toUpperCase()}</div>
+                <div className="pa-display" style={{ fontSize: 36, fontWeight: 700, color: T.text, lineHeight: 1.1, marginTop: 5, letterSpacing: "-.02em", whiteSpace: "nowrap" }}>
+                  {num(heroAmount)} <span style={{ fontSize: 17, fontWeight: 600, color: "rgba(var(--ovc),.55)" }}>zł</span>
                 </div>
               </div>
               {delta !== null && (
                 <div className="pa-body" style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, marginTop: 4,
-                  color: delta > 0 ? "#F2A69E" : "#9BE8CB", background: delta > 0 ? "rgba(230,118,109,.16)" : `${T.mint}1E`,
+                  color: delta > 0 ? "var(--c-up)" : "var(--c-down)", background: delta > 0 ? "rgba(230,118,109,.16)" : `${T.mint}1E`,
                   border: `1px solid ${delta > 0 ? "rgba(230,118,109,.34)" : T.mint + "3A"}`, borderRadius: 999, padding: "5px 10px" }}>
                   {delta > 0 ? "▲" : delta < 0 ? "▼" : "="} {Math.abs(delta)}%
                 </div>
@@ -2220,9 +2655,9 @@ function ParagonAIInner() {
             </div>
 
             {/* prognoza / tempo */}
-            <div className="pa-body" style={{ position: "relative", fontSize: 11.5, color: "rgba(255,255,255,.62)", marginTop: 7, lineHeight: 1.5 }}>
+            <div className="pa-body" style={{ position: "relative", fontSize: 11.5, color: "rgba(var(--ovc),.62)", marginTop: 7, lineHeight: 1.5 }}>
               {heroPace ? (
-                <>≈ <span className="pa-mono" style={{ color: "#DCEDE5" }}>{num(heroPace.perDay)} zł</span> dziennie{heroPace.forecast ? <> · w tym tempie miesiąc zamkniesz na <span className="pa-mono" style={{ color: heroPace.worse ? "#F2A69E" : "#9BE8CB" }}>~{num(heroPace.forecast)} zł</span></> : null}</>
+                <>≈ <span className="pa-mono" style={{ color: T.text }}>{num(heroPace.perDay)} zł</span> dziennie{heroPace.forecast ? <> · w tym tempie miesiąc zamkniesz na <span className="pa-mono" style={{ color: heroPace.worse ? "#F2A69E" : "#9BE8CB" }}>~{num(heroPace.forecast)} zł</span></> : null}</>
               ) : "Dodaj paragony, by zobaczyć tempo wydatków"}
             </div>
 
@@ -2230,20 +2665,20 @@ function ParagonAIInner() {
             <div style={{ position: "relative", marginTop: 12 }}>
               <SpendCurve receipts={receipts} month={month} height={64} />
               <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}>
-                <span className="pa-mono" style={{ fontSize: 8.5, color: "rgba(255,255,255,.38)" }}>1</span>
+                <span className="pa-mono" style={{ fontSize: 8.5, color: "rgba(var(--ovc),.38)" }}>1</span>
                 {prevTotal > 0 && (
-                  <span className="pa-body" style={{ fontSize: 8.5, color: "rgba(255,255,255,.42)", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    <span style={{ width: 12, height: 0, borderTop: "1.5px dashed rgba(255,255,255,.45)", display: "inline-block" }} /> poprzedni miesiąc
+                  <span className="pa-body" style={{ fontSize: 8.5, color: "rgba(var(--ovc),.42)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <span style={{ width: 12, height: 0, borderTop: "1.5px dashed rgba(var(--ovc),.45)", display: "inline-block" }} /> poprzedni miesiąc
                   </span>
                 )}
-                <span className="pa-mono" style={{ fontSize: 8.5, color: "rgba(255,255,255,.38)" }}>{daysInMonth(month)}</span>
+                <span className="pa-mono" style={{ fontSize: 8.5, color: "rgba(var(--ovc),.38)" }}>{daysInMonth(month)}</span>
               </div>
             </div>
 
             {/* pasek kategorii + legenda */}
             {byCategory.length > 0 && (
-              <div style={{ position: "relative", marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(255,255,255,.09)" }}>
-                <div style={{ display: "flex", height: 9, borderRadius: 5, overflow: "hidden", background: "rgba(255,255,255,.07)", gap: 1.5 }}>
+              <div style={{ position: "relative", marginTop: 14, paddingTop: 14, borderTop: "1px solid rgba(var(--ovc),.09)" }}>
+                <div style={{ display: "flex", height: 9, borderRadius: 5, overflow: "hidden", background: "var(--sf2)", gap: 1.5 }}>
                   {byCategory.slice(0, 6).map((c) => (
                     <div key={c.slug} title={`${c.name}: ${zl(c.value)}`}
                       style={{ width: `${Math.max((c.value / monthTotal) * 100, 1.5)}%`, background: c.color, boxShadow: `0 0 8px ${c.color}55`, transition: `width 600ms ${T.easeOut}` }} />
@@ -2251,7 +2686,7 @@ function ParagonAIInner() {
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 10 }}>
                   {byCategory.slice(0, 3).map((c) => (
-                    <div key={c.slug} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.08)", borderRadius: 999, padding: "5px 10px" }}>
+                    <div key={c.slug} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--sf1)", border: "1px solid rgba(var(--ovc),.08)", borderRadius: 999, padding: "5px 10px" }}>
                       <span style={{ width: 7, height: 7, borderRadius: 2.5, background: c.color, flexShrink: 0, boxShadow: `0 0 6px ${c.color}88` }} />
                       <span className="pa-body" style={{ fontSize: 10.5, color: "#CBDCD2" }}>{c.name}</span>
                       <span className="pa-mono" style={{ fontSize: 10, color: "#fff", fontWeight: 600 }}>{Math.round((c.value / monthTotal) * 100)}%</span>
@@ -2274,21 +2709,21 @@ function ParagonAIInner() {
               const perDayLeft = dLeft > 0 ? left / dLeft : 0;
               const col = over ? T.danger : pct >= 0.8 ? T.warn : T.mint;
               return (
-                <div style={{ position: "relative", marginTop: 14, paddingTop: 13, borderTop: "1px solid rgba(255,255,255,.09)" }}>
+                <div style={{ position: "relative", marginTop: 14, paddingTop: 13, borderTop: "1px solid rgba(var(--ovc),.09)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 7 }}>
-                    <span className="pa-body" style={{ fontSize: 10.5, color: "rgba(255,255,255,.55)", fontWeight: 600, letterSpacing: ".05em" }}>BUDŻET MIESIĄCA</span>
+                    <span className="pa-body" style={{ fontSize: 10.5, color: "rgba(var(--ovc),.55)", fontWeight: 600, letterSpacing: ".05em" }}>BUDŻET MIESIĄCA</span>
                     <span className="pa-mono" style={{ fontSize: 11, color: col, fontWeight: 600 }}>{num(monthTotal)} / {num(budget)} zł</span>
                   </div>
-                  <div style={{ height: 7, background: "rgba(255,255,255,.08)", borderRadius: 4, overflow: "hidden" }}>
+                  <div style={{ height: 7, background: "var(--sf2)", borderRadius: 4, overflow: "hidden" }}>
                     <div className="pa-bar-glint" style={{ height: "100%", width: `${Math.max(pct * 100, 2)}%`, borderRadius: 4,
                       background: over ? `linear-gradient(90deg, ${T.warn}, ${T.danger})` : `linear-gradient(90deg, ${T.mint}, ${T.mintDeep})`,
                       boxShadow: `0 0 10px ${col}66`, transition: `width 600ms ${T.easeOut}` }} />
                   </div>
-                  <div className="pa-body" style={{ fontSize: 10.5, color: over ? "#F2A69E" : "rgba(255,255,255,.55)", marginTop: 7 }}>
+                  <div className="pa-body" style={{ fontSize: 10.5, color: over ? "#F2A69E" : "rgba(var(--ovc),.55)", marginTop: 7 }}>
                     {over
                       ? `Przekroczono o ${zl(monthTotal - budget)}`
                       : dLeft > 0
-                        ? <>Zostało <span className="pa-mono" style={{ color: "#DCEDE5" }}>{num(left)} zł</span> na {dLeft} {dLeft === 1 ? "dzień" : "dni"} · <span className="pa-mono" style={{ color: col }}>{num(perDayLeft)} zł/dzień</span></>
+                        ? <>Zostało <span className="pa-mono" style={{ color: T.text }}>{num(left)} zł</span> na {dLeft} {dLeft === 1 ? "dzień" : "dni"} · <span className="pa-mono" style={{ color: col }}>{num(perDayLeft)} zł/dzień</span></>
                         : `Zostało ${zl(left)}`}
                   </div>
                 </div>
@@ -2304,17 +2739,17 @@ function ParagonAIInner() {
               })).filter((r) => r.limit > 0 && r.spent > 0);
               if (!rows.length) return null;
               return (
-                <div style={{ position: "relative", marginTop: 13, paddingTop: 13, borderTop: "1px solid rgba(255,255,255,.09)", display: "flex", flexDirection: "column", gap: 9 }}>
+                <div style={{ position: "relative", marginTop: 13, paddingTop: 13, borderTop: "1px solid rgba(var(--ovc),.09)", display: "flex", flexDirection: "column", gap: 9 }}>
                   {rows.map((r) => {
                     const c = catBySlug(r.slug);
                     const pct = Math.min(r.spent / r.limit, 1);
                     const hot = r.spent / r.limit >= 0.8;
                     return (
                       <div key={r.slug}>
-                        <div className="pa-body" style={{ fontSize: 11, color: "rgba(255,255,255,.6)", marginBottom: 5 }}>
+                        <div className="pa-body" style={{ fontSize: 11, color: "rgba(var(--ovc),.6)", marginBottom: 5 }}>
                           {c.icon} {c.name} · <span className="pa-mono">{num(r.spent)} / {num(r.limit)} zł</span>
                         </div>
-                        <div style={{ width: "100%", height: 5, background: "rgba(255,255,255,0.08)", borderRadius: 3, overflow: "hidden" }}>
+                        <div style={{ width: "100%", height: 5, background: "var(--sf2)", borderRadius: 3, overflow: "hidden" }}>
                           <div style={{ height: "100%", width: `${Math.max(pct * 100, 2)}%`, borderRadius: 3,
                             background: hot ? `linear-gradient(90deg, ${T.warn}, ${T.danger})` : `linear-gradient(90deg, ${T.mint}, ${T.mintDeep})`,
                             transition: `width 500ms ${T.easeOut}` }} />
@@ -2330,7 +2765,7 @@ function ParagonAIInner() {
           {isPro && dueItems.length > 0 && (
             <button className="pa-press pa-rise" onClick={() => setView({ name: "restock" })}
               style={{ width: "100%", textAlign: "left", marginTop: 12, cursor: "pointer", position: "relative", overflow: "hidden",
-                background: `linear-gradient(135deg, ${T.gold}14, rgba(255,255,255,.03))`, border: `1px solid ${T.gold}40`, borderRadius: 18, padding: "14px 15px" }}>
+                background: `linear-gradient(135deg, ${T.gold}14, rgba(var(--ovc),.03))`, border: `1px solid ${T.gold}40`, borderRadius: 18, padding: "14px 15px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                 <div style={{ width: 34, height: 34, borderRadius: 11, background: `${T.gold}1E`, border: `1px solid ${T.gold}50`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Icon name="cart" size={17} color={T.gold} />
@@ -2375,7 +2810,7 @@ function ParagonAIInner() {
                         <span>{g.icon} {g.name}</span>
                         <span className="pa-mono" style={{ color: done ? T.mint : T.sub }}>{num(g.saved)} / {num(g.target)} zł</span>
                       </div>
-                      <div style={{ height: 5, background: "rgba(255,255,255,.08)", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ height: 5, background: "var(--sf2)", borderRadius: 3, overflow: "hidden" }}>
                         <div style={{ height: "100%", width: `${Math.max(pct * 100, 3)}%`, borderRadius: 3,
                           background: done ? `linear-gradient(90deg, ${T.mint}, ${T.mintDeep})` : `linear-gradient(90deg, ${T.gold}, #B2945A)`, transition: `width 500ms ${T.easeOut}` }} />
                       </div>
@@ -2421,7 +2856,7 @@ function ParagonAIInner() {
             className="pa-body" style={{ ...input, padding: "11px 12px 11px 38px", borderRadius: 14 }} />
           {searchQ && (
             <button className="pa-press" onClick={() => setSearchQ("")}
-              style={{ position: "absolute", right: 9, top: 8, width: 24, height: 24, borderRadius: 8, border: "none", background: "rgba(255,255,255,.08)", color: T.sub, fontSize: 11, cursor: "pointer" }}>✕</button>
+              style={{ position: "absolute", right: 9, top: 8, width: 24, height: 24, borderRadius: 8, border: "none", background: "var(--sf2)", color: T.sub, fontSize: 11, cursor: "pointer" }}>✕</button>
           )}
         </div>
         {dates.length === 0 ? (
@@ -2500,15 +2935,15 @@ function ParagonAIInner() {
                         <div className="pa-body" style={{ fontSize: 10.5, color: T.faint, marginTop: 1 }}>{Math.round(pct * 100)}%</div>
                       </div>
                     </div>
-                    <div style={{ height: 5, background: "rgba(255,255,255,.07)", borderRadius: 3, marginTop: 10, overflow: "hidden" }}>
+                    <div style={{ height: 5, background: "var(--sf2)", borderRadius: 3, marginTop: 10, overflow: "hidden" }}>
                       <div style={{ height: "100%", width: `${Math.max(pct * 100, 2)}%`, background: `linear-gradient(90deg, ${c.color}, ${c.color}99)`, borderRadius: 3, transition: `width 500ms ${T.easeOut}`, boxShadow: `0 0 10px ${c.color}55` }} />
                     </div>
                   </button>
                   {open && (
-                    <div className="pa-fade" style={{ borderTop: `1px dashed rgba(255,255,255,.12)`, padding: "9px 14px 13px" }}>
+                    <div className="pa-fade" style={{ borderTop: `1px dashed rgba(var(--ovc),.12)`, padding: "9px 14px 13px" }}>
                       {items.sort((a, b) => b.total_price - a.total_price).map((i) => (
                         <div key={i.id} style={{ display: "flex", alignItems: "baseline", gap: 8, padding: "5.5px 0" }}>
-                          <div className="pa-body" style={{ flex: 1, fontSize: 12.5, color: "#C9D6CE", minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{i.name}</div>
+                          <div className="pa-body" style={{ flex: 1, fontSize: 12.5, color: T.sub, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{i.name}</div>
                           <div className="pa-body" style={{ fontSize: 10, color: T.faint }}>{i.store}</div>
                           <div className="pa-mono" style={{ fontSize: 12, fontWeight: 500, color: T.text }}>{zl(i.total_price)}</div>
                         </div>
@@ -2534,7 +2969,7 @@ function ParagonAIInner() {
                         </span>
                         <span className="pa-mono" style={{ fontSize: 12, color: T.text }}>{zl(m.sum)} <span style={{ color: T.faint, fontSize: 10 }}>({Math.round(pct * 100)}%)</span></span>
                       </div>
-                      <div style={{ height: 5, background: "rgba(255,255,255,.07)", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ height: 5, background: "var(--sf2)", borderRadius: 3, overflow: "hidden" }}>
                         <div style={{ height: "100%", width: `${Math.max(pct * 100, 2)}%`, background: m.color, borderRadius: 3, transition: `width 500ms ${T.easeOut}` }} />
                       </div>
                     </div>
@@ -2586,7 +3021,7 @@ function ParagonAIInner() {
                     </div>
                   </div>
                 ))}
-                <div className="pa-body" style={{ fontSize: 10.5, color: T.faint, padding: "9px 14px 12px", lineHeight: 1.55, borderTop: "1px solid rgba(255,255,255,.05)" }}>
+                <div className="pa-body" style={{ fontSize: 10.5, color: T.faint, padding: "9px 14px 12px", lineHeight: 1.55, borderTop: "1px solid rgba(var(--ovc),.05)" }}>
                   Wykryte na podstawie stałej kwoty wracającej co ~miesiąc. Sprawdź, czy z każdej z tych opłat nadal korzystasz.
                 </div>
               </div>
@@ -2600,18 +3035,12 @@ function ParagonAIInner() {
 
   /* ---------- PROFIL + USTAWIENIA ---------- */
   const Profil = () => {
-    const planMetaMap = { free: { ic: "spark", c: "#9FB3A9", grad: "linear-gradient(140deg,#1A2B23,#0E1A14)" },
-      starter: { ic: "spark", c: "#A8B8C2", grad: "linear-gradient(140deg,#1B2E33,#0E1A1D)" },
-      pro: { ic: "crown", c: T.mint, grad: "linear-gradient(140deg,#15493A 0%,#0E3528 50%,#0A2A1F 100%)" },
-      family: { ic: "crown", c: T.gold, grad: "linear-gradient(140deg,#3A3320 0%,#241E0E 55%,#1A1608 100%)" } };
+    const planMetaMap = { free: { ic: "spark", c: "#9FB3A9", grad: "var(--g-free)" },
+      starter: { ic: "spark", c: "#A8B8C2", grad: "var(--g-starter)" },
+      pro: { ic: "crown", c: T.mint, grad: "var(--g-pro)" },
+      family: { ic: "crown", c: T.gold, grad: "var(--g-family)" } };
     const planMeta = planMetaMap[effTier] || planMetaMap.free;
     const planName = PLANS.find((p) => p.id === effTier)?.name || "Free";
-    // rangi "oszczędzacza" wg liczby paragonów — lekki grywalizacyjny detal
-    const tiersR = [[0, "Nowicjusz"], [10, "Łowca paragonów"], [30, "Strateg wydatków"], [75, "Mistrz budżetu"], [150, "Legenda oszczędzania"]];
-    const rankIdx = tiersR.reduce((acc, t, i) => receipts.length >= t[0] ? i : acc, 0);
-    const rank = tiersR[rankIdx][1];
-    const nextThresh = tiersR[rankIdx + 1]?.[0];
-    const rankPct = nextThresh ? Math.min(receipts.length / nextThresh, 1) : 1;
 
     const openEditProfile = () => setInputSheet({
       title: "Edytuj profil",
@@ -2624,19 +3053,19 @@ function ParagonAIInner() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
         <div className="pa-display" style={{ fontSize: 22, fontWeight: 700, color: T.text }}>Profil</div>
         <button className="pa-press" onClick={openEditProfile} aria-label="Edytuj profil"
-          style={{ ...navBtn, width: 38, height: 38, background: "rgba(255,255,255,.06)", borderColor: "rgba(255,255,255,.12)", color: T.sub, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          style={{ ...navBtn, width: 38, height: 38, background: "var(--sf2)", borderColor: "rgba(var(--ovc),.12)", color: T.sub, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Icon name="pencil" size={16} color={T.sub} />
         </button>
       </div>
 
       {/* MEMBERSHIP CARD */}
       <div className="pa-rise pa-sheen" style={{ position: "relative", borderRadius: 26, overflow: "hidden",
-        background: planMeta.grad, border: "1px solid rgba(255,255,255,.11)",
-        boxShadow: "0 26px 64px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.14)", padding: "20px 18px 18px", marginBottom: 22 }}>
+        background: planMeta.grad, border: "1px solid rgba(var(--ovc),.11)",
+        boxShadow: "0 26px 64px var(--sh2), inset 0 1px 0 rgba(var(--ovc),.14)", padding: "20px 18px 18px", marginBottom: 22 }}>
         <div className="pa-aurora" style={{ top: -90, right: -60, width: 220, height: 220, background: `radial-gradient(circle, ${planMeta.c}33, transparent 68%)` }} />
         {/* górny pasek: ranga + plan */}
         <div style={{ position: "relative", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
-          <div className="pa-mono" style={{ fontSize: 9, letterSpacing: ".18em", color: "rgba(255,255,255,.55)" }}>PARAGON·AI</div>
+          <div className="pa-mono" style={{ fontSize: 9, letterSpacing: ".18em", color: "rgba(var(--ovc),.55)" }}>PARAGON·AI</div>
           <button className="pa-press" onClick={() => setView({ name: "plans" })}
             style={{ display: "inline-flex", alignItems: "center", gap: 5, background: `${planMeta.c}1E`, border: `1px solid ${planMeta.c}55`, borderRadius: 999, padding: "4px 11px 4px 8px", cursor: "pointer" }}>
             <Icon name={planMeta.ic} size={12} color={planMeta.c} sw={1.8} />
@@ -2649,7 +3078,7 @@ function ParagonAIInner() {
           style={{ position: "relative", display: "flex", alignItems: "center", gap: 15, cursor: "pointer", userSelect: "none" }}>
           <div style={{ position: "relative", width: 64, height: 64, flexShrink: 0 }}>
             <div style={{ position: "absolute", inset: -3, borderRadius: 22, background: `conic-gradient(from 140deg, ${planMeta.c}, ${T.gold}, ${planMeta.c})`, opacity: .85 }} />
-            <div className="pa-display" style={{ position: "absolute", inset: 0, borderRadius: 20, background: "#0B1712", color: T.text,
+            <div className="pa-display" style={{ position: "absolute", inset: 0, borderRadius: 20, background: "var(--c-avatar)", color: T.text,
               display: "flex", alignItems: "center", justifyContent: "center", fontSize: 23, fontWeight: 700, letterSpacing: ".02em" }}>
               {initials}
             </div>
@@ -2657,9 +3086,9 @@ function ParagonAIInner() {
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="pa-display" style={{ fontSize: 19, fontWeight: 700, color: "#fff", display: "flex", alignItems: "center", gap: 7 }}>
               <span style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{profile.name || "Twój profil"}</span>
-              <Icon name="pencil" size={13} color="rgba(255,255,255,.45)" />
+              <Icon name="pencil" size={13} color="rgba(var(--ovc),.45)" />
             </div>
-            <div className="pa-body" style={{ fontSize: 12, color: "rgba(255,255,255,.6)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{profile.email || "Dodaj swoje dane — dotknij, aby edytować"}</div>
+            <div className="pa-body" style={{ fontSize: 12, color: "rgba(var(--ovc),.6)", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{profile.email || "Dodaj swoje dane — dotknij, aby edytować"}</div>
             <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
               {profile.title && (
                 <span className="pa-mono" style={{ fontSize: 9, fontWeight: 700, letterSpacing: ".06em", color: T.gold, background: `${T.gold}18`, border: `1px solid ${T.gold}45`, borderRadius: 999, padding: "3px 9px" }}>🏷️ {profile.title}</span>
@@ -2676,25 +3105,25 @@ function ParagonAIInner() {
             <span className="pa-body" style={{ fontSize: 12, fontWeight: 700, color: "#fff", display: "inline-flex", alignItems: "center", gap: 6 }}>
               ⚡ Poziom {lvl + 1} · {LEVELS[lvl].name}
             </span>
-            <span className="pa-mono" style={{ fontSize: 10.5, color: "rgba(255,255,255,.55)" }}>
+            <span className="pa-mono" style={{ fontSize: 10.5, color: "rgba(var(--ovc),.55)" }}>
               {totalXp}{lvlNext ? ` / ${lvlNext.xp}` : ""} XP{streak >= 2 ? ` · 🔥 ${streak}` : ""}
             </span>
           </div>
-          <div style={{ height: 6, background: "rgba(0,0,0,.3)", borderRadius: 3, overflow: "hidden", boxShadow: "inset 0 1px 2px rgba(0,0,0,.4)" }}>
+          <div style={{ height: 6, background: "var(--sh1)", borderRadius: 3, overflow: "hidden", boxShadow: "inset 0 1px 2px var(--sh2)" }}>
             <div className="pa-bar-glint" style={{ height: "100%", width: `${Math.max(lvlPct * 100, 4)}%`, borderRadius: 3,
               background: `linear-gradient(90deg, ${planMeta.c}, ${T.gold})`, transition: `width 700ms ${T.easeOut}`, boxShadow: `0 0 10px ${planMeta.c}77` }} />
           </div>
-          <div className="pa-body" style={{ fontSize: 10, color: "rgba(255,255,255,.45)", marginTop: 6 }}>
+          <div className="pa-body" style={{ fontSize: 10, color: "rgba(var(--ovc),.45)", marginTop: 6 }}>
             {lvlNext ? `Jeszcze ${lvlNext.xp - totalXp} XP do poziomu „${lvlNext.name}" · zdobywaj w Osiągnięciach ›` : "Maksymalny poziom — Absolut! 👑"}
           </div>
         </div>
         {/* statystyki */}
-        <div style={{ position: "relative", display: "flex", gap: 1, marginTop: 18, background: "rgba(255,255,255,.07)", border: "1px solid rgba(255,255,255,.09)", borderRadius: 15, overflow: "hidden" }}>
+        <div style={{ position: "relative", display: "flex", gap: 1, marginTop: 18, background: "var(--sf2)", border: "1px solid rgba(var(--ovc),.09)", borderRadius: 15, overflow: "hidden" }}>
           {[["Paragony", receipts.length, "receipt"], ["Wydano łącznie", zl(allTotal), "chart"], ["Ten miesiąc", zl(monthTotal), "cart"]].map(([k, v, ic], i) => (
-            <div key={k} style={{ flex: 1, padding: "11px 10px", background: "rgba(0,0,0,.15)", borderLeft: i ? "1px solid rgba(255,255,255,.07)" : "none" }}>
+            <div key={k} style={{ flex: 1, padding: "11px 10px", background: "var(--sh1)", borderLeft: i ? "1px solid rgba(var(--ovc),.07)" : "none" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 5 }}>
-                <Icon name={ic} size={11} color="rgba(255,255,255,.5)" sw={1.8} />
-                <span className="pa-body" style={{ fontSize: 8.5, color: "rgba(255,255,255,.5)", letterSpacing: ".05em", textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{k}</span>
+                <Icon name={ic} size={11} color="rgba(var(--ovc),.5)" sw={1.8} />
+                <span className="pa-body" style={{ fontSize: 8.5, color: "rgba(var(--ovc),.5)", letterSpacing: ".05em", textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{k}</span>
               </div>
               <div className="pa-mono" style={{ fontSize: 13, fontWeight: 600, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v}</div>
             </div>
@@ -2755,7 +3184,7 @@ function ParagonAIInner() {
                 )}
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 12 }}>
                   {household.members.map((m) => (
-                    <span key={m.userId} className="pa-body" style={{ fontSize: 11, fontWeight: 600, color: T.sub, background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 999, padding: "6px 12px" }}>
+                    <span key={m.userId} className="pa-body" style={{ fontSize: 11, fontWeight: 600, color: T.sub, background: "var(--sf1)", border: "1px solid rgba(var(--ovc),.1)", borderRadius: 999, padding: "6px 12px" }}>
                       {m.userId === session.user.id ? "⭐ Ty" : `👤 ${m.name}`}
                     </span>
                   ))}
@@ -2849,14 +3278,14 @@ function ParagonAIInner() {
                         setBudgets((b) => { const nb = { ...b }; if (n > 0) nb[slug] = Math.round(n * 100) / 100; else delete nb[slug]; return nb; });
                       }}
                       className="pa-mono" style={{ width: 90, textAlign: "right", fontSize: 13, padding: "8px 26px 8px 10px", borderRadius: 11,
-                        border: `1px solid ${set ? T.mint + "55" : "rgba(255,255,255,.08)"}`, background: "rgba(255,255,255,.04)", color: T.text, boxSizing: "border-box" }} />
+                        border: `1px solid ${set ? T.mint + "55" : "rgba(var(--ovc),.08)"}`, background: "var(--sf1)", color: T.text, boxSizing: "border-box" }} />
                     <span className="pa-body" style={{ position: "absolute", right: 9, fontSize: 11, color: T.faint, pointerEvents: "none" }}>zł</span>
                   </div>
                 </div>
               </div>
             );
           })}
-          <div className="pa-body" style={{ fontSize: 10.5, color: T.faint, padding: "8px 14px 12px", lineHeight: 1.5, borderTop: "1px solid rgba(255,255,255,.05)" }}>
+          <div className="pa-body" style={{ fontSize: 10.5, color: T.faint, padding: "8px 14px 12px", lineHeight: 1.5, borderTop: "1px solid rgba(var(--ovc),.05)" }}>
             Paski postępu pojawią się na Pulpicie, gdy w kategorii z budżetem będą wydatki.
           </div>
         </div>
@@ -2872,6 +3301,38 @@ function ParagonAIInner() {
       )}
 
       {/* POWIADOMIENIA */}
+      <SectionLabel>Wygląd</SectionLabel>
+      <div className="pa-rise" style={{ ...card, padding: "13px 14px", marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 11 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 11, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15,
+            background: `${T.mint}16`, border: `1px solid ${T.mint}38` }}>🎨</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="pa-display" style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>Motyw aplikacji</div>
+            <div className="pa-body" style={{ fontSize: 10.5, color: T.faint, marginTop: 2 }}>
+              {({ auto: "Dopasowuje się do ustawień telefonu", light: "Jasny — dobry w dzień i w słońcu", gold: "Złoty zmierzch — ciepła paleta 🏆", navy: "Nocny granat — głęboki błękit 🌌" })[themePref] || "Ciemny — oszczędza baterię wieczorem"}
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 6, background: "var(--sf3)", borderRadius: 13, padding: 4, flexWrap: "wrap" }}>
+          {[["dark", "🌙", "Ciemny"], ["light", "☀️", "Jasny"], ["auto", "⚙️", "Auto"],
+            ...(themesOwned.includes("theme-gold") ? [["gold", "🏆", "Złoty"]] : []),
+            ...(themesOwned.includes("theme-navy") ? [["navy", "🌌", "Granat"]] : [])].map(([id, ico, label]) => {
+            const on = themePref === id;
+            return (
+              <button key={id} className="pa-press pa-body" onClick={() => setThemePref(id)}
+                style={{ flex: "1 1 28%", minWidth: 76, padding: "9px 0", borderRadius: 10, cursor: "pointer", fontSize: 11.5, fontWeight: on ? 700 : 500,
+                  border: `1px solid ${on ? T.mint + "55" : "transparent"}`,
+                  background: on ? `${T.mint}1E` : "transparent",
+                  color: on ? T.mint : T.sub,
+                  boxShadow: on ? `0 3px 12px ${T.mint}22` : "none",
+                  transition: `all 260ms ${T.easeOut}` }}>
+                <span style={{ marginRight: 5 }}>{ico}</span>{label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <SectionLabel>Powiadomienia</SectionLabel>
       <div className="pa-rise"  style={{ animationDelay: "240ms", ...card, overflow: "hidden" }}>
         <SettingRow ic="bell" tint="#5BB8E8" label="Przypomnienia o skanowaniu" right={<Toggle on={settings.push} onChange={(v) => setSettings((s) => ({ ...s, push: v }))} />} />
@@ -2938,7 +3399,7 @@ function ParagonAIInner() {
   };
 
   /* ---------- OSIĄGNIĘCIA ---------- */
-  const achMx = useMemo(() => achMetrics(receipts, goals, challenges, streak, profile), [receipts, goals, challenges, streak, profile]);
+  const achMx = useMemo(() => achMetrics(realReceipts, goals, challenges, realStreak, profile), [realReceipts, goals, challenges, realStreak, profile]);
   const achList = useMemo(() => ACHIEVEMENTS.map((a) => {
     if (a.id === "master-crown") {
       const others = ACHIEVEMENTS.filter((o) => o.id !== "master-crown");
@@ -3003,12 +3464,15 @@ function ParagonAIInner() {
     const xp = list.reduce((n, a) => n + (a.xp || 0), 0);
     const days = list.reduce((n, a) => n + (a.proDays || 0), 0);
     const titled = [...list].reverse().find((a) => a.titleReward);
+    const sd = Math.round(list.reduce((n, a) => n + (SEED_BY_TIER[achTier(a)] || 10), 0) * seedMult);
+    if (sd > 0) setSeeds((v) => v + sd);
     if (scans > 0) setBonusScans((b) => b + scans);
     if (days > 0) setPlan((p) => ({ ...p, proUntil: Math.max(p?.proUntil || 0, Date.now()) + days * 864e5 }));
     if (titled) setProfile((p) => ({ ...p, title: titled.title }));
     const parts = [];
     if (scans > 0) parts.push(`+${scans} skanów 🎁`);
     if (xp > 0) parts.push(`+${xp} XP ⚡`);
+    if (sd > 0) parts.push(`+${sd} 🌱`);
     if (days > 0) parts.push(`+${days} dni Pro 👑`);
     if (titled) parts.push(`tytuł „${titled.title}"`);
     return parts.join(" · ");
@@ -3056,6 +3520,94 @@ function ParagonAIInner() {
     navigator.vibrate?.([40, 80, 40, 80, 160]);
   };
 
+  /* ---------- SKLEP ZA ZIARNA ---------- */
+  const buyItem = (it) => {
+    if (seeds < it.cost) { showToast("Za mało Ziaren 🌱"); return; }
+    if (it.id === "freeze" && freezes >= (it.max || 2)) { showToast("Masz już maksimum ochron 🧊"); return; }
+    if (it.theme && themesOwned.includes(it.id)) { showToast("Ten motyw już masz 🎨"); return; }
+    setSeeds((v) => v - it.cost);
+    if (it.id === "freeze") { setFreezes((f) => f + 1); showToast("🧊 Ochrona serii kupiona"); }
+    else if (it.id === "scans5") { setBonusScans((b) => b + 5); showToast("📷 +5 skanów AI"); }
+    else if (it.id === "pro1" || it.id === "pro7") {
+      const d = it.id === "pro1" ? 1 : 7;
+      setPlan((p) => ({ ...p, proUntil: Math.max(p?.proUntil || 0, Date.now()) + d * 864e5 }));
+      showToast(`👑 Pro na ${d === 1 ? "1 dzień" : "7 dni"}!`);
+    } else if (it.theme) {
+      setThemesOwned((t) => [...t, it.id]);
+      setThemePref(it.id === "theme-gold" ? "gold" : "navy");
+      showToast("🎨 Motyw odblokowany i włączony");
+    }
+    navigator.vibrate?.([20, 50, 20]);
+  };
+
+  const ShopView = () => (
+    <div className="pa-slidein" style={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+      <Header title="Sklep za Ziarna" onBack={() => setView({ name: "achievements" })} />
+      <div className="pa-scroll" style={{ flex: 1, minHeight: 0, padding: "6px 18px 48px" }}>
+        <div className="pa-rise" style={{ ...card, padding: "15px 16px", marginBottom: 15, textAlign: "center",
+          background: `linear-gradient(140deg, ${T.mint}1C, ${T.gold}12)`, border: `1px solid ${T.mint}3A` }}>
+          <div className="pa-mono" style={{ fontSize: 9.5, letterSpacing: ".16em", color: T.faint }}>TWOJE ZIARNA</div>
+          <div className="pa-display" style={{ fontSize: 34, fontWeight: 700, color: T.text, marginTop: 4 }}>
+            {seeds} <span style={{ fontSize: 22 }}>🌱</span>
+          </div>
+          {seedMult > 1 && (
+            <div className="pa-mono" style={{ display: "inline-block", marginTop: 7, fontSize: 10, fontWeight: 700, color: "#241C08",
+              background: `linear-gradient(135deg, ${sTier.c}, ${sTier.c}CC)`, borderRadius: 999, padding: "4px 11px" }}>
+              🔥 SERIA {realStreak} DNI · ZIARNA ×{seedMult}
+            </div>
+          )}
+          <div className="pa-body" style={{ fontSize: 10.5, color: T.sub, marginTop: 7, lineHeight: 1.5 }}>
+            Najwięcej dostajesz za <b style={{ color: T.mint }}>tydzień zamknięty pod budżetem</b> (+{SEED_WEEK_BUDGET} 🌱{seedMult > 1 ? ` → +${Math.round(SEED_WEEK_BUDGET * seedMult)} 🌱` : ""})
+          </div>
+        </div>
+
+        {freezes > 0 && (
+          <div className="pa-rise" style={{ display: "flex", alignItems: "center", gap: 9, padding: "10px 13px", borderRadius: 14,
+            background: "rgba(91,184,232,.12)", border: "1px solid rgba(91,184,232,.3)", marginBottom: 13 }}>
+            <span style={{ fontSize: 16 }}>🧊</span>
+            <span className="pa-body" style={{ fontSize: 11, color: T.sub, lineHeight: 1.45 }}>
+              Masz <b style={{ color: "#5BB8E8" }}>{freezes}</b> {freezes === 1 ? "ochronę" : "ochrony"} serii — zadziała sama, gdy opuścisz dzień.
+            </span>
+          </div>
+        )}
+
+        {SHOP.map((it, i) => {
+          const owned = it.theme && themesOwned.includes(it.id);
+          const full = it.id === "freeze" && freezes >= (it.max || 2);
+          const can = seeds >= it.cost && !owned && !full;
+          return (
+            <div key={it.id} className="pa-rise" style={{ ...card, padding: "13px 14px", marginBottom: 9, animationDelay: `${i * 45}ms`,
+              border: it.best ? `1px solid ${T.gold}55` : card.border }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 13, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 19, background: "var(--sf3)" }}>{it.ico}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span className="pa-display" style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{it.name}</span>
+                    {it.best && <span className="pa-mono" style={{ fontSize: 7.5, fontWeight: 700, color: "#241C08", background: T.gold, borderRadius: 999, padding: "1.5px 6px" }}>HIT</span>}
+                  </div>
+                  <div className="pa-body" style={{ fontSize: 10.3, color: T.faint, marginTop: 2, lineHeight: 1.45 }}>{it.desc}</div>
+                </div>
+                <button className="pa-press pa-mono" onClick={() => buyItem(it)} disabled={!can}
+                  style={{ flexShrink: 0, padding: "9px 12px", borderRadius: 12, cursor: can ? "pointer" : "default", fontSize: 11.5, fontWeight: 700,
+                    border: can ? "none" : `1px solid ${T.glassBorder}`,
+                    background: owned || full ? "var(--sf3)" : can ? `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})` : "var(--sf2)",
+                    color: owned || full ? T.faint : can ? "#06251A" : T.faint,
+                    boxShadow: can ? `0 5px 16px ${T.mint}30` : "none" }}>
+                  {owned ? "MASZ" : full ? "MAX" : `${it.cost} 🌱`}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+
+        <div className="pa-body" style={{ fontSize: 10, color: T.faint, textAlign: "center", marginTop: 14, lineHeight: 1.6 }}>
+          Ziarna zdobywasz za tygodnie pod budżetem, wyzwania,<br />osiągnięcia, serię dni i skanowanie paragonów.
+        </div>
+      </div>
+    </div>
+  );
+
   const AchievementsView = () => {
     const claimable = achList.filter((a) => a.unlocked && !a.claimed);
     const done = achList.filter((a) => a.claimed);
@@ -3075,15 +3627,15 @@ function ParagonAIInner() {
       return (
         <div className={king ? "pa-crown" : canClaim ? "pa-sheen" : ""} style={{ ...card,
           padding: king ? "15px 15px" : "12px 14px",
-          border: `1px solid ${king ? T.gold + "70" : canClaim ? T.gold + "55" : a.claimed ? tier.color + "45" : "rgba(255,255,255,.07)"}`,
-          background: king ? `linear-gradient(135deg, rgba(216,184,120,.16), rgba(255,255,255,.03))`
-            : canClaim ? `linear-gradient(135deg, ${T.gold}12, rgba(255,255,255,.02))` : card.background,
+          border: `1px solid ${king ? T.gold + "70" : canClaim ? T.gold + "55" : a.claimed ? tier.color + "45" : "rgba(var(--ovc),.07)"}`,
+          background: king ? `linear-gradient(135deg, rgba(216,184,120,.16), rgba(var(--ovc),.03))`
+            : canClaim ? `linear-gradient(135deg, ${T.gold}12, rgba(var(--ovc),.02))` : card.background,
           boxShadow: canClaim && !king ? `0 8px 26px ${T.gold}20` : card.boxShadow, opacity: hidden ? 0.72 : 1 }}>
           {king && <div className="pa-mono" style={{ fontSize: 8.5, letterSpacing: ".16em", color: T.gold, marginBottom: 9 }}>★ NAGRODA SPECJALNA · +50 SKANÓW</div>}
           <div style={{ display: "flex", alignItems: "center", gap: 11 }}>
             <div style={{ width: 42, height: 42, borderRadius: 13, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20,
-              background: a.claimed ? `${tier.color}18` : canClaim ? `${T.gold}1C` : "rgba(255,255,255,.05)",
-              border: `1px solid ${a.claimed || canClaim ? tier.color + "55" : "rgba(255,255,255,.09)"}`,
+              background: a.claimed ? `${tier.color}18` : canClaim ? `${T.gold}1C` : "rgba(var(--ovc),.05)",
+              border: `1px solid ${a.claimed || canClaim ? tier.color + "55" : "rgba(var(--ovc),.09)"}`,
               filter: !a.unlocked ? "grayscale(.75)" : "none",
               boxShadow: canClaim ? `0 0 16px ${T.gold}40` : "none" }}>
               {hidden ? "🔒" : a.emoji}
@@ -3103,7 +3655,7 @@ function ParagonAIInner() {
                   <span className="pa-mono" style={{ fontSize: 9, fontWeight: 700, color: T.mint, background: `${T.mint}12`, border: `1px solid ${T.mint}35`, borderRadius: 999, padding: "2px 7px" }}>🎁 {a.reward}</span>
                 )}
                 {!hidden && (a.xp || 0) > 0 && (
-                  <span className="pa-mono" style={{ fontSize: 9, fontWeight: 700, color: "#9FB3C8", background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 999, padding: "2px 7px" }}>⚡{a.xp}</span>
+                  <span className="pa-mono" style={{ fontSize: 9, fontWeight: 700, color: "#9FB3C8", background: "var(--sf1)", border: "1px solid rgba(var(--ovc),.1)", borderRadius: 999, padding: "2px 7px" }}>⚡{a.xp}</span>
                 )}
               </div>
               <div className="pa-body" style={{ fontSize: 10.5, color: T.faint, marginTop: 3, lineHeight: 1.45 }}>
@@ -3112,7 +3664,7 @@ function ParagonAIInner() {
               </div>
               {!a.unlocked && !compact && (
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 7 }}>
-                  <div style={{ flex: 1, height: 4, background: "rgba(255,255,255,.07)", borderRadius: 2, overflow: "hidden" }}>
+                  <div style={{ flex: 1, height: 4, background: "var(--sf2)", borderRadius: 2, overflow: "hidden" }}>
                     <div className={prog > 0.5 ? "pa-bar-glint" : ""} style={{ height: "100%", width: `${Math.max(prog * 100, 3)}%`, borderRadius: 2, background: `linear-gradient(90deg, ${tier.color}, ${tier.color}99)`, transition: `width 600ms ${T.easeOut}` }} />
                   </div>
                   <span className="pa-mono" style={{ fontSize: 9.5, color: prog > 0.75 ? tier.color : T.faint, flexShrink: 0, fontWeight: prog > 0.75 ? 700 : 400 }}>
@@ -3136,8 +3688,8 @@ function ParagonAIInner() {
     const Chip = ({ k, label, n }) => (
       <button className="pa-press pa-body" onClick={() => setAchFilter(k)}
         style={{ flexShrink: 0, padding: "7px 13px", borderRadius: 999, cursor: "pointer", fontSize: 11.5, fontWeight: 600,
-          border: `1px solid ${achFilter === k ? T.mint + "60" : "rgba(255,255,255,.1)"}`,
-          background: achFilter === k ? `${T.mint}18` : "rgba(255,255,255,.04)",
+          border: `1px solid ${achFilter === k ? T.mint + "60" : "rgba(var(--ovc),.1)"}`,
+          background: achFilter === k ? `${T.mint}18` : "rgba(var(--ovc),.04)",
           color: achFilter === k ? T.mint : T.sub, transition: `all 240ms ${T.easeOut}` }}>
         {label}{n != null ? ` ${n}` : ""}
       </button>
@@ -3153,13 +3705,13 @@ function ParagonAIInner() {
           <div className="pa-rise"  style={{ animationDelay: "360ms", ...card, padding: "16px 16px", marginBottom: 14, display: "flex", alignItems: "center", gap: 15 }}>
             <div style={{ position: "relative", width: 72, height: 72, flexShrink: 0 }}>
               <svg width="72" height="72" style={{ transform: "rotate(-90deg)" }}>
-                <circle cx="36" cy="36" r={R} fill="none" stroke="rgba(255,255,255,.08)" strokeWidth="6" />
+                <circle cx="36" cy="36" r={R} fill="none" stroke="rgba(var(--ovc),.08)" strokeWidth="6" />
                 <circle cx="36" cy="36" r={R} fill="none" stroke={T.gold} strokeWidth="6" strokeLinecap="round"
                   strokeDasharray={C} strokeDashoffset={C * (1 - pct)}
                   style={{ transition: `stroke-dashoffset 1100ms ${T.easeOut}`, filter: `drop-shadow(0 0 6px ${T.gold}66)` }} />
                 {pct > 0.02 && (
                   <circle cx={36 + R * Math.cos(2 * Math.PI * pct)} cy={36 + R * Math.sin(2 * Math.PI * pct)} r="4.5"
-                    fill="#fff" style={{ transition: `all 1100ms ${T.easeOut}`, filter: `drop-shadow(0 0 7px ${T.gold})` }} />
+                    fill="var(--c-text)" style={{ transition: `all 1100ms ${T.easeOut}`, filter: `drop-shadow(0 0 7px ${T.gold})` }} />
                 )}
               </svg>
               <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
@@ -3177,7 +3729,7 @@ function ParagonAIInner() {
                   <span className="pa-display" style={{ fontSize: 11.5, fontWeight: 700, color: T.mint }}>⚡ Poziom {lvl + 1} · {LEVELS[lvl].name}</span>
                   <span className="pa-mono" style={{ fontSize: 9.5, color: T.faint }}>{totalXp}{lvlNext ? ` / ${lvlNext.xp}` : ""} XP</span>
                 </div>
-                <div style={{ height: 5, background: "rgba(255,255,255,.07)", borderRadius: 3, overflow: "hidden" }}>
+                <div style={{ height: 5, background: "var(--sf2)", borderRadius: 3, overflow: "hidden" }}>
                   <div className="pa-bar-glint" style={{ height: "100%", width: `${Math.max(lvlPct * 100, 2)}%`, borderRadius: 3, background: `linear-gradient(90deg, ${T.mint}, ${T.mintDeep})`, transition: `width 700ms ${T.easeOut}` }} />
                 </div>
               </div>
@@ -3190,49 +3742,157 @@ function ParagonAIInner() {
             </div>
           </div>
 
+          {/* 🔥 seria: próg + mnożnik + następny prezent */}
+          <div className="pa-rise" style={{ ...card, padding: "14px 15px", marginBottom: 12,
+            background: `linear-gradient(135deg, ${sTier.c}18, ${sTier.c}06)`, border: `1px solid ${sTier.c}40` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <div style={{ position: "relative", width: 52, height: 52, flexShrink: 0, borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center",
+                background: `${sTier.c}1E`, border: `1px solid ${sTier.c}55` }}>
+                <span className={realStreak > 0 ? "pa-flame" : ""} style={{ fontSize: 23 }}>{realStreak > 0 ? sTier.emoji : "🌱"}</span>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 7, flexWrap: "wrap" }}>
+                  <span className="pa-display" style={{ fontSize: 17, fontWeight: 700, color: T.text }}>
+                    {realStreak} {realStreak === 1 ? "dzień" : "dni"}
+                  </span>
+                  <span className="pa-mono" style={{ fontSize: 9.5, fontWeight: 700, color: sTier.c }}>{sTier.name.toUpperCase()}</span>
+                </div>
+                <div className="pa-body" style={{ fontSize: 10.5, color: T.faint, marginTop: 2.5, lineHeight: 1.45 }}>
+                  {seedMult > 1
+                    ? <>Wszystkie Ziarna <b style={{ color: sTier.c }}>×{seedMult}</b> dzięki serii</>
+                    : "Skanuj 3 dni z rzędu, a Ziarna zaczną się mnożyć"}
+                </div>
+              </div>
+              {seedMult > 1 && (
+                <div className="pa-mono" style={{ flexShrink: 0, fontSize: 13, fontWeight: 700, color: "#241C08",
+                  background: `linear-gradient(135deg, ${sTier.c}, ${sTier.c}CC)`, borderRadius: 11, padding: "6px 10px" }}>
+                  ×{seedMult}
+                </div>
+              )}
+            </div>
+
+            {sNext && (() => {
+              const prev = sTier.d, span = sNext.d - prev, done = Math.max(0, realStreak - prev);
+              const pct = Math.min(100, Math.round((done / span) * 100));
+              const gift = STREAK_GIFTS[sNext.d];
+              const giftTxt = gift ? [gift.seeds && `+${gift.seeds} 🌱`, gift.freeze && `+${gift.freeze} 🧊`, gift.proDays && `+${gift.proDays} dni Pro 👑`, gift.title && `tytuł`].filter(Boolean).join(" · ") : null;
+              return (
+                <div style={{ marginTop: 12 }}>
+                  <div style={{ height: 6, borderRadius: 999, background: "var(--sf3)", overflow: "hidden" }}>
+                    <div className="pa-fill" style={{ width: `${pct}%`, height: "100%", borderRadius: 999,
+                      background: `linear-gradient(90deg, ${sTier.c}, ${sNext.c})` }} />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 6 }}>
+                    <span className="pa-body" style={{ fontSize: 10, color: T.faint }}>
+                      Jeszcze <b style={{ color: T.sub }}>{sNext.d - realStreak}</b> {sNext.d - realStreak === 1 ? "dzień" : "dni"} do „{sNext.name}" (×{sNext.mult})
+                    </span>
+                    {giftTxt && <span className="pa-mono" style={{ fontSize: 9, color: T.gold, flexShrink: 0 }}>🎁 {giftTxt}</span>}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* sklep za Ziarna */}
+          <div className="pa-press pa-rise" role="button" onClick={() => setView({ name: "shop" })}
+            style={{ ...card, padding: "13px 14px", marginBottom: 14, display: "flex", alignItems: "center", gap: 11, cursor: "pointer",
+              background: `linear-gradient(135deg, ${T.mint}14, ${T.gold}0E)`, border: `1px solid ${T.mint}38` }}>
+            <div style={{ width: 40, height: 40, borderRadius: 13, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 19, background: `${T.mint}1C`, border: `1px solid ${T.mint}44` }}>🌱</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="pa-display" style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>
+                {seeds} <span style={{ fontSize: 11, color: T.sub, fontWeight: 500 }}>Ziaren</span>
+              </div>
+              <div className="pa-body" style={{ fontSize: 10.3, color: T.faint, marginTop: 2 }}>
+                {seedMult > 1 ? `×${seedMult} od serii · ` : ""}{freezes > 0 ? `🧊 ${freezes} w zapasie · ` : ""}Wymień na skany, Pro i motywy
+              </div>
+            </div>
+            <span style={{ flexShrink: 0, color: T.mint, fontSize: 17 }}>›</span>
+          </div>
+
           {/* ścieżka poziomów */}
-          <div className="pa-rise" style={{ ...card, padding: "13px 0 11px", marginBottom: 14, overflow: "hidden" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "0 15px", marginBottom: 10 }}>
-              <span className="pa-display" style={{ fontSize: 13, fontWeight: 700, color: T.text }}>🎖️ Ścieżka poziomów</span>
-              <span className="pa-mono" style={{ fontSize: 9.5, color: lvlClaimable.length ? T.gold : T.faint, fontWeight: lvlClaimable.length ? 700 : 400 }}>
+          <div className="pa-rise" style={{ ...card, padding: "14px 0 12px", marginBottom: 14, overflow: "hidden" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "0 15px", marginBottom: 12, gap: 10 }}>
+              <div style={{ minWidth: 0 }}>
+                <div className="pa-display" style={{ fontSize: 13.5, fontWeight: 700, color: T.text }}>🎖️ Ścieżka poziomów</div>
+                <div className="pa-body" style={{ fontSize: 9.8, color: T.faint, marginTop: 2.5 }}>
+                  {lvlClaimable.length ? "Złote węzły czekają — dotknij, by odebrać" : "Przesuń palcem, by zobaczyć nagrody →"}
+                </div>
+              </div>
+              <span className="pa-mono" style={{ flexShrink: 0, fontSize: 9.5, marginTop: 2, color: lvlClaimable.length ? T.gold : T.faint, fontWeight: lvlClaimable.length ? 700 : 400 }}>
                 {lvlClaimable.length ? `${lvlClaimable.length} do odebrania ✨` : `${lvl + 1} / ${LEVELS.length}`}
               </span>
             </div>
-            <div className="pa-scroll" data-lvlpath="1" ref={(el) => { if (el && !el.dataset.c) { el.dataset.c = "1"; el.scrollLeft = Math.max(0, lvl * 62 - el.clientWidth / 2 + 31); } }}
-              style={{ display: "flex", gap: 0, overflowX: "auto", padding: "2px 15px 6px" }}>
-              {LEVELS.map((L, i) => {
-                const got = i <= lvl;
-                const canTake = got && i > 0 && (L.scans || L.proDays || L.title) && !claimedLvls.includes(i);
-                const rewardIco = L.proDays ? "👑" : L.scans ? "🎁" : L.title ? "🏷️" : null;
-                return (
-                  <div key={i} style={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
-                    {i > 0 && <div style={{ width: 18, height: 2.5, borderRadius: 2, background: i <= lvl ? `linear-gradient(90deg, ${T.mint}, ${T.mintDeep})` : "rgba(255,255,255,.08)" }} />}
-                    <div className="pa-press" role="button" data-lvlgold={canTake ? "1" : undefined}
-                      onClick={canTake ? () => claimLevel({ ...L, i }) : () => setLvlInfo(lvlInfo === i ? null : i)}
-                      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, cursor: canTake ? "pointer" : "default", width: 44 }}>
-                      <div className={lvlPop === i ? "pa-node-pop" : canTake ? "pa-node-bob" : ""} style={{ position: "relative", width: 38, height: 38, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: rewardIco ? 15 : 12.5, fontWeight: 700,
-                        background: canTake ? `linear-gradient(135deg, ${T.gold}, #B2945A)` : got ? `${T.mint}1A` : "rgba(255,255,255,.04)",
-                        border: `1.5px solid ${lvlInfo === i ? "#fff" : canTake ? T.gold : got ? T.mint + "60" : "rgba(255,255,255,.1)"}`,
-                        color: canTake ? "#241C08" : got ? T.mint : T.faint,
-                        boxShadow: canTake ? `0 0 16px ${T.gold}55` : i === lvl ? `0 0 12px ${T.mint}45` : "none",
-                        filter: got || canTake ? "none" : "grayscale(.4)" }}>
-                        {canTake && lvlPop !== i && <span className="pa-node-ring" />}
-                        {lvlPop === i && <span className="pa-node-burst" />}
-                        {canTake ? rewardIco : got ? (rewardIco && claimedLvls.includes(i) ? "✓" : rewardIco || "✓") : (rewardIco || i + 1)}
+
+            <div style={{ position: "relative" }}>
+              <div className="pa-lvl-track" data-lvlpath="1"
+                ref={(el) => { if (el && !el.dataset.c) { el.dataset.c = "1"; el.scrollLeft = Math.max(0, lvl * 62 - 110); } }}
+                style={{ padding: "6px 15px 8px" }}>
+                {LEVELS.map((L, i) => {
+                  const got = i <= lvl;
+                  const isNow = i === lvl;
+                  const hasReward = !!(L.scans || L.proDays || L.title);
+                  const canTake = got && i > 0 && hasReward && !claimedLvls.includes(i);
+                  const taken = hasReward && claimedLvls.includes(i);
+                  const rewardIco = L.proDays ? "👑" : L.scans ? "🎁" : L.title ? "🏷️" : null;
+                  return (
+                    <div key={i} style={{ display: "flex", alignItems: "flex-start", flexShrink: 0 }}>
+                      {i > 0 && (
+                        <div style={{ width: 20, height: 3, borderRadius: 3, marginTop: 27,
+                          background: got ? `linear-gradient(90deg, ${T.mint}, ${T.mint}CC)` : "rgba(var(--ovc),.09)" }} />
+                      )}
+                      <div className="pa-press pa-lvl-node" role="button" data-lvlgold={canTake ? "1" : undefined}
+                        onClick={canTake ? () => claimLevel({ ...L, i }) : () => setLvlInfo(lvlInfo === i ? null : i)}
+                        style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, width: 54, cursor: "pointer" }}>
+
+                        <div style={{ position: "relative", height: 13, display: "flex", alignItems: "center" }}>
+                          {isNow ? (
+                            <span className="pa-mono" style={{ fontSize: 7, fontWeight: 700, letterSpacing: ".08em",
+                              color: canTake ? "#241C08" : "#06251A", background: canTake ? T.gold : T.mint,
+                              borderRadius: 999, padding: "1.5px 6px", whiteSpace: "nowrap" }}>{canTake ? "TU ✨" : "TU"}</span>
+                          ) : canTake ? (
+                            <span className="pa-gift" style={{ fontSize: 10 }}>✨</span>
+                          ) : null}
+                        </div>
+
+                        <div className={lvlPop === i ? "pa-node-pop" : canTake ? "pa-node-bob" : ""}
+                          style={{ position: "relative", width: 46, height: 46, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: rewardIco ? 18 : 14, fontWeight: 700,
+                            background: canTake ? `linear-gradient(135deg, ${T.gold}, #B2945A)`
+                              : taken ? `${T.mint}22` : got ? `${T.mint}16` : "var(--sf3)",
+                            border: `2px solid ${lvlInfo === i ? T.text : canTake ? T.gold : isNow ? T.mint : got ? T.mint + "55" : "rgba(var(--ovc),.09)"}`,
+                            color: canTake ? "#241C08" : got ? T.mint : T.faint,
+                            boxShadow: canTake ? `0 0 20px ${T.gold}66, 0 4px 12px ${T.gold}33`
+                              : isNow ? `0 0 18px ${T.mint}55` : "none",
+                            opacity: got ? 1 : .72 }}>
+                          {canTake && lvlPop !== i && <span className="pa-node-ring" />}
+                          {lvlPop === i && <span className="pa-node-burst" />}
+                          {canTake ? rewardIco : taken ? "✓" : got ? (rewardIco || "✓") : (rewardIco || i + 1)}
+                        </div>
+
+                        <div style={{ textAlign: "center", width: "100%" }}>
+                          <div className="pa-body" style={{ fontSize: 8, lineHeight: 1.25, fontWeight: isNow ? 700 : 500,
+                            color: isNow ? T.mint : got ? T.sub : T.faint,
+                            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{L.name}</div>
+                          <div className="pa-mono" style={{ fontSize: 7.5, color: T.faint, marginTop: 1 }}>
+                            {L.xp >= 1000 ? (L.xp / 1000).toFixed(1).replace(".0", "") + "k" : L.xp}
+                          </div>
+                        </div>
                       </div>
-                      <span className="pa-mono" style={{ fontSize: 7.5, color: i === lvl ? T.mint : T.faint, fontWeight: i === lvl ? 700 : 400 }}>
-                        {i === lvl ? "TU" : L.xp >= 1000 ? (L.xp / 1000).toFixed(1).replace(".0", "") + "k" : L.xp}
-                      </span>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+              <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 20, pointerEvents: "none",
+                background: `linear-gradient(90deg, var(--c-glass), transparent)` }} />
+              <div style={{ position: "absolute", right: 0, top: 0, bottom: 0, width: 20, pointerEvents: "none",
+                background: `linear-gradient(270deg, var(--c-glass), transparent)` }} />
             </div>
+
             {lvlInfo !== null && LEVELS[lvlInfo] ? (() => { const L = LEVELS[lvlInfo]; const got = lvlInfo <= lvl; const taken = claimedLvls.includes(lvlInfo);
               const rw = [L.scans && `🎁 +${L.scans} skanów`, L.proDays && `👑 +${L.proDays} ${L.proDays === 1 ? "dzień" : "dni"} Pro`, L.title && `🏷️ tytuł „${L.title}"`].filter(Boolean).join(" · ");
               return (
-                <div key={lvlInfo} className="pa-fade" style={{ margin: "8px 13px 0", padding: "10px 13px", borderRadius: 13, background: got ? `${T.mint}0C` : "rgba(255,255,255,.04)", border: `1px solid ${got ? T.mint + "35" : "rgba(255,255,255,.1)"}` }}>
+                <div key={lvlInfo} className="pa-fade" style={{ margin: "8px 13px 0", padding: "10px 13px", borderRadius: 13, background: got ? `${T.mint}0C` : "rgba(var(--ovc),.04)", border: `1px solid ${got ? T.mint + "35" : "rgba(var(--ovc),.1)"}` }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
                     <span className="pa-display" style={{ fontSize: 12.5, fontWeight: 700, color: T.text }}>Poziom {lvlInfo + 1} · {L.name}</span>
                     <span className="pa-mono" style={{ fontSize: 9, color: got ? T.mint : T.faint, flexShrink: 0 }}>{got ? (taken || !rw ? "✓ osiągnięty" : "do odebrania ✨") : `${L.xp} XP`}</span>
@@ -3270,7 +3930,7 @@ function ParagonAIInner() {
             (shown.length || (achFilter === "claim" && lvlClaimable.length)) ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
                 {achFilter === "claim" && lvlClaimable.map((L) => (
-                  <div key={"lvl" + L.i} className="pa-sheen" style={{ ...card, padding: "12px 14px", border: `1px solid ${T.gold}55`, background: `linear-gradient(135deg, ${T.gold}12, rgba(255,255,255,.02))`, display: "flex", alignItems: "center", gap: 11 }}>
+                  <div key={"lvl" + L.i} className="pa-sheen" style={{ ...card, padding: "12px 14px", border: `1px solid ${T.gold}55`, background: `linear-gradient(135deg, ${T.gold}12, rgba(var(--ovc),.02))`, display: "flex", alignItems: "center", gap: 11 }}>
                     <div style={{ width: 42, height: 42, borderRadius: 999, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, background: `${T.gold}1C`, border: `1px solid ${T.gold}55` }}>🎖️</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="pa-display" style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>Poziom {L.i + 1} · {L.name}</div>
@@ -3300,7 +3960,7 @@ function ParagonAIInner() {
                   <Card a={master} claimable={master.unlocked && !master.claimed} />
                   {!master.unlocked && (
                     <div style={{ marginTop: 8 }}>
-                      <div style={{ height: 5, background: "rgba(255,255,255,.07)", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ height: 5, background: "var(--sf2)", borderRadius: 3, overflow: "hidden" }}>
                         <div className="pa-bar-glint" style={{ height: "100%", width: `${Math.max((master.cur / master.target) * 100, 2)}%`, borderRadius: 3, background: `linear-gradient(90deg, ${T.gold}, #A189DB)`, transition: `width 700ms ${T.easeOut}` }} />
                       </div>
                       <div className="pa-body" style={{ fontSize: 10, color: T.faint, textAlign: "center", marginTop: 6 }}>
@@ -3346,7 +4006,7 @@ function ParagonAIInner() {
                     <div className="pa-press" role="button"
                       onClick={() => setAchOpen((o) => { const base = o || Object.fromEntries(ACH_CATS.map((x) => [x.key, achList.some((a) => a.cat === x.key && a.unlocked && !a.claimed)])); return { ...base, [c.key]: !base[c.key] }; })}
                       style={{ display: "flex", alignItems: "center", gap: 9, padding: "11px 13px", borderRadius: open ? "14px 14px 0 0" : 14, cursor: "pointer",
-                        background: "rgba(255,255,255,.035)", border: "1px solid rgba(255,255,255,.08)", borderBottom: open ? "none" : "1px solid rgba(255,255,255,.08)" }}>
+                        background: "var(--sf1)", border: "1px solid rgba(var(--ovc),.08)", borderBottom: open ? "none" : "1px solid rgba(var(--ovc),.08)" }}>
                       <span style={{ fontSize: 15 }}>{c.emoji}</span>
                       <span className="pa-display" style={{ flex: 1, fontSize: 13.5, fontWeight: 600, color: T.text }}>{c.label}</span>
                       {takeN > 0 && <span className="pa-mono" style={{ fontSize: 9, fontWeight: 700, color: "#241C08", background: `linear-gradient(135deg, ${T.gold}, #B2945A)`, borderRadius: 999, padding: "3px 8px" }}>{takeN} 🎁</span>}
@@ -3377,7 +4037,7 @@ function ParagonAIInner() {
   };
 
   /* ---------- WYZWANIA ---------- */
-  const chAll = useMemo(() => challenges.map((c) => ({ ...c, tpl: CHALLENGE_TPLS.find((t) => t.id === c.tplId), ev: c.status === "active" ? challengeEval(c, receipts) : null })).filter((c) => c.tpl), [challenges, receipts]);
+  const chAll = useMemo(() => challenges.map((c) => ({ ...c, tpl: CHALLENGE_TPLS.find((t) => t.id === c.tplId), ev: c.status === "active" ? challengeEval(c, realReceipts) : null })).filter((c) => c.tpl), [challenges, realReceipts]);
   const chActive = chAll.filter((c) => c.status === "active");
   const chWon = chAll.filter((c) => c.status === "won");
   const maxActive = effTier === "free" ? 1 : 3;
@@ -3392,7 +4052,7 @@ function ParagonAIInner() {
       return d ? { ...c, status: d.ev.status } : c;
     }));
     const win = done.find((c) => c.ev.status === "won");
-    if (win) { setCelebrate(win.tpl); navigator.vibrate?.([40, 80, 40, 80, 120]); }
+    if (win) { setCelebrate(win.tpl); addSeeds(SEED_CHALLENGE); navigator.vibrate?.([40, 80, 40, 80, 120]); }
     else showToast("Wyzwanie nie wyszło — spróbuj ponownie 💪");
   }, [chAll, loaded]);
   const startChallenge = (tplId) => {
@@ -3410,7 +4070,7 @@ function ParagonAIInner() {
     const col = ev.status === "won" ? T.mint : ev.status === "lost" ? T.danger : c.tpl.type === "limit_category" ? T.gold : T.mint;
     return (
       <div style={{ ...card, padding: "14px 15px", border: `1px solid ${done ? col + "40" : T.glassBorderSoft}`, opacity: c.status === "lost" ? 0.65 : 1 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: ev.status === "active" || true ? 11 : 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 11 }}>
           <div style={{ width: 42, height: 42, borderRadius: 13, background: `${col}14`, border: `1px solid ${col}38`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, flexShrink: 0 }}>{c.tpl.emoji}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="pa-display" style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{c.tpl.title}</div>
@@ -3426,10 +4086,10 @@ function ParagonAIInner() {
           )}
           {ev.status === "active" && (
             <button className="pa-press" onClick={() => setConfirmBox({ title: "Porzucić wyzwanie?", body: `„${c.tpl.title}" zniknie z aktywnych. Możesz podjąć je ponownie później.`, confirmLabel: "Porzuć", onConfirm: () => { setChallenges((arr) => arr.filter((x) => !(x.tplId === c.tplId && x.startKey === c.startKey))); setConfirmBox(null); } })}
-              style={{ width: 26, height: 26, borderRadius: 8, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: T.faint, fontSize: 11, cursor: "pointer", flexShrink: 0 }}>✕</button>
+              style={{ width: 26, height: 26, borderRadius: 8, border: "1px solid rgba(var(--ovc),.08)", background: "var(--sf1)", color: T.faint, fontSize: 11, cursor: "pointer", flexShrink: 0 }}>✕</button>
           )}
         </div>
-        <div style={{ height: 6, background: "rgba(255,255,255,.07)", borderRadius: 3, overflow: "hidden" }}>
+        <div style={{ height: 6, background: "var(--sf2)", borderRadius: 3, overflow: "hidden" }}>
           <div style={{ height: "100%", width: `${Math.min(Math.max(ev.pct * 100, 3), 100)}%`, borderRadius: 3, background: `linear-gradient(90deg, ${col}, ${col}99)`, transition: `width 500ms ${T.easeOut}`, boxShadow: `0 0 8px ${col}55` }} />
         </div>
       </div>
@@ -3448,7 +4108,7 @@ function ParagonAIInner() {
           </div>
           <button className="pa-press" onClick={() => setView({ name: "achievements" })}
             style={{ width: "100%", textAlign: "left", marginBottom: 18, cursor: "pointer", borderRadius: 14, padding: "11px 14px",
-              border: `1px solid ${achToClaim.length ? T.gold + "50" : "rgba(255,255,255,.09)"}`, background: achToClaim.length ? `${T.gold}10` : T.glass,
+              border: `1px solid ${achToClaim.length ? T.gold + "50" : "rgba(var(--ovc),.09)"}`, background: achToClaim.length ? `${T.gold}10` : T.glass,
               display: "flex", alignItems: "center", gap: 11 }}>
             <span style={{ fontSize: 17 }}>🎖️</span>
             <span className="pa-body" style={{ flex: 1, fontSize: 12.5, fontWeight: 600, color: T.text }}>
@@ -3482,7 +4142,7 @@ function ParagonAIInner() {
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {available.map((t) => (
               <div key={t.id} style={{ ...card, padding: "13px 15px", display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 12, background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.09)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, flexShrink: 0 }}>{t.emoji}</div>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: "var(--sf1)", border: "1px solid rgba(var(--ovc),.09)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, flexShrink: 0 }}>{t.emoji}</div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="pa-display" style={{ fontSize: 13.5, fontWeight: 600, color: T.text }}>{t.title}</div>
                   <div className="pa-body" style={{ fontSize: 10.5, color: T.faint, marginTop: 2, lineHeight: 1.45 }}>{t.desc}</div>
@@ -3555,12 +4215,12 @@ function ParagonAIInner() {
           ) : (
             <>
               <div className="pa-rise pa-sheen" style={{ position: "relative", overflow: "hidden", borderRadius: 24, padding: "22px 20px",
-                background: `linear-gradient(155deg, #15493A 0%, #0E3528 55%, #0A2A1F 100%)`, border: "1px solid rgba(255,255,255,.11)",
-                boxShadow: "0 24px 60px rgba(0,0,0,.48), inset 0 1px 0 rgba(255,255,255,.13)", marginBottom: 14 }}>
+                background: "var(--g-pro)", border: "1px solid rgba(var(--ovc),.11)",
+                boxShadow: "0 24px 60px var(--sh2), inset 0 1px 0 rgba(var(--ovc),.13)", marginBottom: 14 }}>
                 <div className="pa-aurora" style={{ top: -90, right: -60, width: 230, height: 230, background: `radial-gradient(circle, ${T.mint}33, transparent 68%)` }} />
                 <div style={{ position: "relative" }}>
-                  <div className="pa-mono" style={{ fontSize: 10, letterSpacing: ".16em", color: "rgba(255,255,255,.55)" }}>PARAGON·AI</div>
-                  <div className="pa-display" style={{ fontSize: 13, color: "rgba(255,255,255,.75)", marginTop: 10, textTransform: "capitalize" }}>Twój {monthLabel(mk)} w liczbach</div>
+                  <div className="pa-mono" style={{ fontSize: 10, letterSpacing: ".16em", color: "rgba(var(--ovc),.55)" }}>PARAGON·AI</div>
+                  <div className="pa-display" style={{ fontSize: 13, color: "rgba(var(--ovc),.75)", marginTop: 10, textTransform: "capitalize" }}>Twój {monthLabel(mk)} w liczbach</div>
                   <div className="pa-mono" style={{ fontSize: 38, fontWeight: 600, color: "#fff", marginTop: 4, lineHeight: 1.05 }}>{zl(st.total)}</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                     {st.delta != null && (
@@ -3570,7 +4230,7 @@ function ParagonAIInner() {
                         {deltaDown ? "▼" : "▲"} {Math.abs(st.delta)}% vs poprz. mies.
                       </span>
                     )}
-                    <span className="pa-body" style={{ fontSize: 11.5, color: "rgba(255,255,255,.6)" }}>{st.count} {st.count === 1 ? "paragon" : "paragonów"} · {st.itemCount} pozycji</span>
+                    <span className="pa-body" style={{ fontSize: 11.5, color: "rgba(var(--ovc),.6)" }}>{st.count} {st.count === 1 ? "paragon" : "paragonów"} · {st.itemCount} pozycji</span>
                   </div>
                 </div>
               </div>
@@ -3588,7 +4248,7 @@ function ParagonAIInner() {
                       <div className="pa-body" style={{ fontSize: 10.5, color: T.faint, marginTop: 1 }}>{topCatPct}% budżetu</div>
                     </div>
                   </div>
-                  <div style={{ height: 5, background: "rgba(255,255,255,.07)", borderRadius: 3, marginTop: 12, overflow: "hidden" }}>
+                  <div style={{ height: 5, background: "var(--sf2)", borderRadius: 3, marginTop: 12, overflow: "hidden" }}>
                     <div style={{ height: "100%", width: `${topCatPct}%`, borderRadius: 3, background: `linear-gradient(90deg, ${T.mint}, ${T.mintDeep})` }} />
                   </div>
                 </div>
@@ -3619,7 +4279,7 @@ function ParagonAIInner() {
                           <span className="pa-body" style={{ fontSize: 12, color: T.sub }}>{meta.icon} {meta.name}</span>
                           <span className="pa-mono" style={{ fontSize: 11.5, color: T.text }}>{zl(c.value)} <span style={{ color: T.faint }}>· {p}%</span></span>
                         </div>
-                        <div style={{ height: 4, background: "rgba(255,255,255,.06)", borderRadius: 2, overflow: "hidden" }}>
+                        <div style={{ height: 4, background: "var(--sf2)", borderRadius: 2, overflow: "hidden" }}>
                           <div style={{ height: "100%", width: `${Math.max(p, 2)}%`, borderRadius: 2, background: meta.color || T.mint }} />
                         </div>
                       </div>
@@ -3712,12 +4372,12 @@ function ParagonAIInner() {
             <>
               {/* podsumowanie */}
               <div className="pa-rise pa-sheen" style={{ position: "relative", overflow: "hidden", borderRadius: 20, padding: "16px 18px", marginBottom: 16,
-                background: `linear-gradient(140deg, #3A3320 0%, #241E0E 60%, #1A1608 100%)`, border: `1px solid ${T.gold}33`, boxShadow: "0 18px 44px rgba(0,0,0,.4)" }}>
+                background: "var(--g-family)", border: `1px solid ${T.gold}33`, boxShadow: "0 18px 44px var(--sh2)" }}>
                 <div className="pa-aurora" style={{ top: -80, right: -50, width: 200, height: 200, background: `radial-gradient(circle, ${T.gold}30, transparent 68%)` }} />
                 <div style={{ position: "relative" }}>
-                  <div className="pa-body" style={{ fontSize: 11, color: "rgba(255,255,255,.6)", letterSpacing: ".06em", fontWeight: 600 }}>ODŁOŻONE ŁĄCZNIE</div>
+                  <div className="pa-body" style={{ fontSize: 11, color: "rgba(var(--ovc),.6)", letterSpacing: ".06em", fontWeight: 600 }}>ODŁOŻONE ŁĄCZNIE</div>
                   <div className="pa-mono" style={{ fontSize: 26, fontWeight: 600, color: "#fff", marginTop: 4 }}>{zl(totalSaved)}</div>
-                  <div className="pa-body" style={{ fontSize: 11.5, color: "rgba(255,255,255,.5)", marginTop: 2 }}>z {zl(totalTarget)} we wszystkich celach</div>
+                  <div className="pa-body" style={{ fontSize: 11.5, color: "rgba(var(--ovc),.5)", marginTop: 2 }}>z {zl(totalTarget)} we wszystkich celach</div>
                 </div>
               </div>
 
@@ -3765,13 +4425,13 @@ function ParagonAIInner() {
                           </div>
                         </div>
                         <button className="pa-press" onClick={() => setConfirmBox({ title: "Usunąć cel?", body: `„${g.name}" — odłożone ${zl(g.saved)} zostanie usunięte z aplikacji.`, confirmLabel: "Usuń cel", onConfirm: () => { setGoals((arr) => arr.filter((x) => x.id !== g.id)); setConfirmBox(null); showToast("Cel usunięty"); } })}
-                          style={{ width: 28, height: 28, borderRadius: 9, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.03)", color: T.faint, fontSize: 12, cursor: "pointer", flexShrink: 0 }}>✕</button>
+                          style={{ width: 28, height: 28, borderRadius: 9, border: "1px solid rgba(var(--ovc),.08)", background: "var(--sf1)", color: T.faint, fontSize: 12, cursor: "pointer", flexShrink: 0 }}>✕</button>
                       </div>
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
                         <span className="pa-mono" style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{zl(g.saved)}</span>
                         <span className="pa-mono" style={{ fontSize: 11, color: T.faint }}>{Math.round(pct * 100)}% z {zl(g.target)}</span>
                       </div>
-                      <div style={{ height: 8, background: "rgba(255,255,255,.07)", borderRadius: 4, overflow: "hidden", boxShadow: "inset 0 1px 2px rgba(0,0,0,.3)" }}>
+                      <div style={{ height: 8, background: "var(--sf2)", borderRadius: 4, overflow: "hidden", boxShadow: "inset 0 1px 2px var(--sh1)" }}>
                         <div style={{ height: "100%", width: `${Math.max(pct * 100, 3)}%`, borderRadius: 4,
                           background: done ? `linear-gradient(90deg, ${T.mint}, ${T.mintDeep})` : `linear-gradient(90deg, ${T.gold}, #B2945A)`,
                           transition: `width 600ms ${T.easeOut}`, boxShadow: `0 0 10px ${done ? T.mint : T.gold}66` }} />
@@ -3802,7 +4462,7 @@ function ParagonAIInner() {
                             submitLabel: "Ustaw termin",
                             onSubmit: (v) => { if (!v.deadline) { showToast("Wybierz datę"); return; } if (v.deadline < todayKey()) { showToast("Data nie może być w przeszłości"); return; } setGoals((arr) => arr.map((x) => x.id === g.id ? { ...x, deadline: v.deadline } : x)); setInputSheet(null); showToast("Termin ustawiony ✓"); },
                           })}
-                          style={{ width: "100%", marginTop: 11, padding: "8px 0", borderRadius: 11, border: "1px dashed rgba(255,255,255,.15)", background: "none", color: T.faint, fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>
+                          style={{ width: "100%", marginTop: 11, padding: "8px 0", borderRadius: 11, border: "1px dashed rgba(var(--ovc),.15)", background: "none", color: T.faint, fontSize: 11.5, fontWeight: 600, cursor: "pointer" }}>
                           + Dodaj termin (policzę tempo)
                         </button>
                       )}
@@ -3819,7 +4479,7 @@ function ParagonAIInner() {
               </div>
 
               <button className="pa-press pa-body" onClick={openNew}
-                style={{ width: "100%", marginTop: 12, padding: "12px 0", borderRadius: 14, border: "1.5px dashed rgba(255,255,255,.18)", background: "none", color: T.sub, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+                style={{ width: "100%", marginTop: 12, padding: "12px 0", borderRadius: 14, border: "1.5px dashed rgba(var(--ovc),.18)", background: "none", color: T.sub, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
                 + Dodaj kolejny cel
               </button>
             </>
@@ -3836,14 +4496,13 @@ function ParagonAIInner() {
     const cartCount = Object.values(restockDone).filter(Boolean).length;
     const Row = (it) => {
       const checked = !!restockDone[it.key];
-      const c = catBySlug(it.category);
       const pct = Math.min(it.ratio, 1);
       const col = it.due ? T.gold : T.mint;
       return (
         <div key={it.key} className="pa-fade" style={{ display: "flex", alignItems: "center", gap: 11, padding: "11px 14px", opacity: checked ? 0.5 : 1, transition: "opacity 200ms ease" }}>
           <button className="pa-press" onClick={() => { setRestockDone((d) => ({ ...d, [it.key]: !d[it.key] })); if (!checked) navigator.vibrate?.(20); }}
             style={{ width: 26, height: 26, borderRadius: 8, flexShrink: 0, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-              border: checked ? "none" : `1.5px solid rgba(255,255,255,.2)`, background: checked ? `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})` : "transparent" }}>
+              border: checked ? "none" : `1.5px solid rgba(var(--ovc),.2)`, background: checked ? `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})` : "transparent" }}>
             {checked && <Icon name="check" size={15} sw={2.5} color="#06251A" />}
           </button>
           <CatTile slug={it.category} size={32} fs={15} />
@@ -3852,7 +4511,7 @@ function ParagonAIInner() {
             <div className="pa-body" style={{ fontSize: 10.5, color: T.faint, marginTop: 2 }}>
               kupujesz {cycleLabel(it.avgGap)} · ostatnio {it.sinceLast === 0 ? "dziś" : it.sinceLast === 1 ? "wczoraj" : `${it.sinceLast} dni temu`}
             </div>
-            <div style={{ height: 3, background: "rgba(255,255,255,.08)", borderRadius: 2, marginTop: 6, overflow: "hidden" }}>
+            <div style={{ height: 3, background: "var(--sf2)", borderRadius: 2, marginTop: 6, overflow: "hidden" }}>
               <div style={{ height: "100%", width: `${Math.max(pct * 100, 4)}%`, background: col, borderRadius: 2, transition: `width 400ms ${T.easeOut}` }} />
             </div>
           </div>
@@ -3919,7 +4578,7 @@ function ParagonAIInner() {
 
               {cartCount > 0 && (
                 <button className="pa-press pa-body" onClick={() => { setRestockDone({}); showToast("Koszyk wyczyszczony"); }}
-                  style={{ width: "100%", padding: "11px 0", borderRadius: 13, border: "1px solid rgba(255,255,255,.1)", background: "none", color: T.sub, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+                  style={{ width: "100%", padding: "11px 0", borderRadius: 13, border: "1px solid rgba(var(--ovc),.1)", background: "none", color: T.sub, fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
                   Wyczyść koszyk ({cartCount})
                 </button>
               )}
@@ -3950,7 +4609,7 @@ function ParagonAIInner() {
 
           {/* przełącznik rozliczenia */}
           {proTrialActive && (
-            <div className="pa-fade" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, padding: "11px 13px", borderRadius: 14, background: `linear-gradient(135deg, ${T.gold}16, rgba(255,255,255,.02))`, border: `1px solid ${T.gold}45` }}>
+            <div className="pa-fade" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, padding: "11px 13px", borderRadius: 14, background: `linear-gradient(135deg, ${T.gold}16, rgba(var(--ovc),.02))`, border: `1px solid ${T.gold}45` }}>
               <span style={{ fontSize: 16 }}>👑</span>
               <div className="pa-body" style={{ flex: 1, fontSize: 11.5, color: T.sub, lineHeight: 1.5 }}>
                 <b style={{ color: T.gold }}>Testujesz Pro</b> do {new Date(plan.proUntil).toLocaleDateString("pl-PL", { day: "numeric", month: "long" })} — kup plan, aby nielimitowane skany i analizy zostały na stałe.
@@ -3969,13 +4628,13 @@ function ParagonAIInner() {
               </button>
             </div>
           )}
-          <div className="pa-fade" style={{ display: "flex", background: "rgba(255,255,255,.05)", border: "1px solid rgba(255,255,255,.09)", borderRadius: 999, padding: 4, marginBottom: 16, position: "relative" }}>
+          <div className="pa-fade" style={{ display: "flex", background: "var(--sf1)", border: "1px solid rgba(var(--ovc),.09)", borderRadius: 999, padding: 4, marginBottom: 16, position: "relative" }}>
             {[["monthly", "Miesięcznie"], ["yearly", "Rocznie"]].map(([id, lbl]) => (
               <button key={id} className="pa-press pa-body" onClick={() => { setBilling(id); navigator.vibrate?.(8); }}
                 style={{ flex: 1, padding: "9px 0", borderRadius: 999, border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 700,
                   background: billing === id ? `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})` : "none",
                   color: billing === id ? "#06251A" : T.sub, transition: "all 220ms ease", position: "relative" }}>
-                {lbl}{id === "yearly" && <span className="pa-mono" style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: billing === id ? "#06251A" : T.gold, background: billing === id ? "rgba(0,0,0,.14)" : `${T.gold}1C`, border: billing === id ? "none" : `1px solid ${T.gold}45`, borderRadius: 999, padding: "2px 7px" }}>−30%</span>}
+                {lbl}{id === "yearly" && <span className="pa-mono" style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: billing === id ? "#06251A" : T.gold, background: billing === id ? "var(--sh1)" : `${T.gold}1C`, border: billing === id ? "none" : `1px solid ${T.gold}45`, borderRadius: 999, padding: "2px 7px" }}>−30%</span>}
               </button>
             ))}
           </div>
@@ -3992,7 +4651,7 @@ function ParagonAIInner() {
               return (
                 <button key={p.id} className="pa-press pa-fade" onClick={() => setSelPlan(p.id)}
                   style={{ animationDelay: `${i * 60}ms`, position: "relative", width: "100%", textAlign: "left", cursor: "pointer",
-                    background: sel ? `linear-gradient(150deg, ${accent}14, rgba(255,255,255,.03))` : T.glass,
+                    background: sel ? `linear-gradient(150deg, ${accent}14, rgba(var(--ovc),.03))` : T.glass,
                     border: sel ? `1.5px solid ${accent}` : `1px solid ${T.glassBorder}`,
                     borderRadius: 20, padding: "16px 16px 14px",
                     boxShadow: sel ? `0 12px 36px ${accent}22` : "none", transition: "border-color 200ms ease, box-shadow 200ms ease" }}>
@@ -4015,7 +4674,7 @@ function ParagonAIInner() {
                     {p.features.map((f) => (
                       <div key={f} style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <span className="pa-mono" style={{ color: accent, fontSize: 11 }}>✓</span>
-                        <span className="pa-body" style={{ fontSize: 12, color: "#C9D6CE" }}>{f}</span>
+                        <span className="pa-body" style={{ fontSize: 12, color: T.sub }}>{f}</span>
                       </div>
                     ))}
                   </div>
@@ -4029,7 +4688,7 @@ function ParagonAIInner() {
             disabled={baseTier === selPlan}
             style={{ ...primaryBtn, width: "100%", marginTop: 18, opacity: baseTier === selPlan ? 0.45 : 1,
               background: selPlan === "family" ? `linear-gradient(135deg, ${T.gold}, #B2945A)` : primaryBtn.background,
-              boxShadow: selPlan === "family" ? `0 8px 24px ${T.gold}38, inset 0 1px 0 rgba(255,255,255,.35)` : primaryBtn.boxShadow }}>
+              boxShadow: selPlan === "family" ? `0 8px 24px ${T.gold}38, inset 0 1px 0 rgba(var(--ovc),.35)` : primaryBtn.boxShadow }}>
             {baseTier === selPlan ? "Ten plan jest aktywny" : selPlan === "free" ? "Zostaję na planie Free" : (() => {
               const pp = PLANS.find((p) => p.id === selPlan);
               const bb = Number(pp.price.replace(",", "."));
@@ -4039,7 +4698,7 @@ function ParagonAIInner() {
           </button>
           {reason === "limit" && (
             <button className="pa-press pa-body" onClick={newManualDraft}
-              style={{ width: "100%", marginTop: 10, padding: "12px 0", borderRadius: 14, border: "1px solid rgba(255,255,255,.12)", background: "none", color: T.sub, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              style={{ width: "100%", marginTop: 10, padding: "12px 0", borderRadius: 14, border: "1px solid rgba(var(--ovc),.12)", background: "none", color: T.sub, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
               ✍️ Wpisz paragon ręcznie (za darmo)
             </button>
           )}
@@ -4071,10 +4730,10 @@ function ParagonAIInner() {
           {/* główna akcja: aparat systemowy telefonu */}
           <label htmlFor="pa-cam" className="pa-press"
             style={{ width: "100%", maxWidth: 320, borderRadius: 22, border: `1.5px solid ${T.mint}55`,
-              background: `linear-gradient(150deg, ${T.mint}16, rgba(255,255,255,.02))`, padding: "26px 20px",
+              background: `linear-gradient(150deg, ${T.mint}16, rgba(var(--ovc),.02))`, padding: "26px 20px",
               display: "flex", flexDirection: "column", alignItems: "center", gap: 10, cursor: "pointer",
               boxShadow: `0 14px 40px ${T.mint}1A`, boxSizing: "border-box" }}>
-            <div style={{ width: 64, height: 64, borderRadius: 999, background: `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 10px 28px ${T.mint}50, inset 0 1.5px 0 rgba(255,255,255,.45)` }}>
+            <div style={{ width: 64, height: 64, borderRadius: 999, background: `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})`, display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 10px 28px ${T.mint}50, inset 0 1.5px 0 rgba(var(--ovc),.45)` }}>
               <Icon name="camera" size={28} sw={2} color="#06251A" />
             </div>
             <div className="pa-display" style={{ fontSize: 16, fontWeight: 700, color: T.text }}>Zrób zdjęcie paragonu</div>
@@ -4082,9 +4741,9 @@ function ParagonAIInner() {
           </label>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", maxWidth: 320, margin: "18px 0" }}>
-            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,.08)" }} />
+            <div style={{ flex: 1, height: 1, background: "var(--sf2)" }} />
             <span className="pa-body" style={{ fontSize: 10.5, color: T.faint }}>LUB</span>
-            <div style={{ flex: 1, height: 1, background: "rgba(255,255,255,.08)" }} />
+            <div style={{ flex: 1, height: 1, background: "var(--sf2)" }} />
           </div>
 
           <div style={{ display: "flex", gap: 10, width: "100%", maxWidth: 320 }}>
@@ -4119,10 +4778,10 @@ function ParagonAIInner() {
               <div style={{ flex: 1 }}>
                 <label className="pa-body" style={lbl}>Sklep</label>
                 <select value={draft.store} onChange={(e) => setDraft({ ...draft, store: e.target.value })} className="pa-body" style={input}>
-                  {draft.store && !STORES.includes(draft.store) && <option value={draft.store} style={{ background: "#13241C" }}>{draft.store}</option>}
+                  {draft.store && !STORES.includes(draft.store) && <option value={draft.store} style={{ background: "var(--c-surface)" }}>{draft.store}</option>}
                   {STORE_GROUPS.map((g) => (
                 <optgroup key={g.label} label={g.label}>
-                  {g.stores.map((s) => <option key={s} style={{ background: "#13241C" }}>{s}</option>)}
+                  {g.stores.map((s) => <option key={s} style={{ background: "var(--c-surface)" }}>{s}</option>)}
                 </optgroup>
               ))}
                 </select>
@@ -4144,8 +4803,8 @@ function ParagonAIInner() {
                   return (
                     <button key={m.id} className="pa-press pa-body" onClick={() => setDraft((d) => ({ ...d, memberId: m.id }))}
                       style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", borderRadius: 999, cursor: "pointer",
-                        border: sel ? `1.5px solid ${mc}` : "1px solid rgba(255,255,255,.1)",
-                        background: sel ? `${mc}18` : "rgba(255,255,255,.03)", color: sel ? T.text : T.sub, fontSize: 12, fontWeight: 600 }}>
+                        border: sel ? `1.5px solid ${mc}` : "1px solid rgba(var(--ovc),.1)",
+                        background: sel ? `${mc}18` : "rgba(var(--ovc),.03)", color: sel ? T.text : T.sub, fontSize: 12, fontWeight: 600 }}>
                       <span style={{ width: 7, height: 7, borderRadius: 999, background: mc }} />{m.name}
                     </button>
                   );
@@ -4183,7 +4842,7 @@ function ParagonAIInner() {
             ))}
           </div>
           <button className="pa-press pa-body" onClick={() => setDraft((d) => ({ ...d, items: [...d.items, { id: uid(), name: "", qty: 1, total_price: 0, category: "inne" }] }))}
-            style={{ marginTop: 10, width: "100%", padding: "12px 0", borderRadius: 14, border: `1.5px dashed rgba(255,255,255,.18)`, background: "none", color: T.sub, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+            style={{ marginTop: 10, width: "100%", padding: "12px 0", borderRadius: 14, border: `1.5px dashed rgba(var(--ovc),.18)`, background: "none", color: T.sub, fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
             + Dodaj pozycję
           </button>
         </div>
@@ -4210,7 +4869,7 @@ function ParagonAIInner() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", position: "relative", minHeight: 0 }}>
         <Header title="Szczegóły paragonu" onBack={() => setView({ name: "tabs" })} />
         <div className="pa-scroll" style={{ flex: 1, padding: "12px 22px 48px" }}>
-          <div className="pa-rise" style={{ filter: "drop-shadow(0 22px 40px rgba(0,0,0,.5))" }}>
+          <div className="pa-rise" style={{ filter: "drop-shadow(0 22px 40px var(--sh2))" }}>
             <div className="pa-zz-paper-top" />
             <div style={{ background: T.paper, padding: "20px 18px 8px" }}>
               <div style={{ textAlign: "center", marginBottom: 14 }}>
@@ -4266,7 +4925,7 @@ function ParagonAIInner() {
 
   /* ---------- RENDER ---------- */
   return (
-    <div className="pa-body" style={{ minHeight: "100vh", background: "#050B08", display: "flex", justifyContent: "center" }}>
+    <div className="pa-body" style={{ minHeight: "100vh", background: "var(--c-outer)", display: "flex", justifyContent: "center" }}>
       <GlobalStyle />
       <input id="pa-file" ref={fileRef} type="file" accept="image/*"
         style={{ position: "absolute", width: 1, height: 1, opacity: 0, overflow: "hidden", clip: "rect(0 0 0 0)", pointerEvents: "none" }}
@@ -4279,10 +4938,10 @@ function ParagonAIInner() {
         onChange={(e) => { restoreBackup(e.target.files?.[0]); e.target.value = ""; }} />
 
       <div ref={appRef} className="pa-app" style={{ width: "100%", maxWidth: 430, display: "flex", flexDirection: "column", position: "relative", overflow: "hidden",
-        background: `radial-gradient(1200px 520px at 50% -160px, #143024 0%, transparent 60%),
+        background: `radial-gradient(1200px 520px at 50% -160px, var(--c-glow) 0%, transparent 60%),
           radial-gradient(900px 420px at 88% 108%, rgba(216,184,120,.05) 0%, transparent 60%),
           radial-gradient(700px 380px at -10% 92%, ${T.mint}08 0%, transparent 55%), ${T.bg}`,
-        boxShadow: "0 0 90px rgba(0,0,0,.65), inset 0 0 120px rgba(0,0,0,.28)" }}>
+        boxShadow: "0 0 90px var(--sh2), inset 0 0 120px var(--sh1)" }}>
 
         <div className="pa-aurora" style={{ top: -120, left: -80, width: 260, height: 260, background: `radial-gradient(circle, ${T.mint}26, transparent 70%)` }} />
         <div className="pa-aurora" style={{ top: 40, right: -110, width: 240, height: 240, background: `radial-gradient(circle, ${T.gold}1C, transparent 70%)`, animationDelay: "-6s" }} />
@@ -4291,7 +4950,7 @@ function ParagonAIInner() {
         {/* pasek marki */}
         <div style={{ position: "relative", zIndex: 1, padding: "16px 18px 6px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-            <div className="pa-mono pa-sheen" style={{ background: `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})`, color: "#06251A", borderRadius: 9, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 600, boxShadow: `0 4px 14px ${T.mint}40, inset 0 1px 0 rgba(255,255,255,.4)` }}>P</div>
+            <div className="pa-mono pa-sheen" style={{ background: `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})`, color: "#06251A", borderRadius: 9, width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 600, boxShadow: `0 4px 14px ${T.mint}40, inset 0 1px 0 rgba(var(--ovc),.4)` }}>P</div>
             <div className="pa-display" style={{ color: T.text, fontSize: 15.5, fontWeight: 700 }}>Paragon <span style={{ color: T.mint }}>AI</span></div>
           </div>
           <button className="pa-press pa-mono" onClick={() => setView({ name: "plans" })}
@@ -4324,6 +4983,7 @@ function ParagonAIInner() {
           : view.name === "summary" ? SummaryView()
           : view.name === "challenges" ? ChallengesView()
           : view.name === "achievements" ? AchievementsView()
+          : view.name === "shop" ? ShopView()
           : (
           <>
             <div ref={scrollRef} className="pa-scroll" style={{ flex: 1, minHeight: 0, position: "relative", zIndex: 1 }}>
@@ -4335,8 +4995,8 @@ function ParagonAIInner() {
             {/* pływająca nawigacja */}
             <div ref={tutNavRef} style={{ position: "absolute", bottom: "calc(14px + env(safe-area-inset-bottom, 0px))", left: 14, right: 14, zIndex: 30,
               background: "rgba(14,26,20,.82)", backdropFilter: "blur(18px)", WebkitBackdropFilter: "blur(18px)",
-              border: "1px solid rgba(255,255,255,.09)", borderRadius: 24, display: "flex", alignItems: "center",
-              padding: "9px 10px", boxShadow: "0 14px 40px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.07)" }}>
+              border: "1px solid rgba(var(--ovc),.09)", borderRadius: 24, display: "flex", alignItems: "center",
+              padding: "9px 10px", boxShadow: "0 14px 40px var(--sh2), inset 0 1px 0 rgba(var(--ovc),.07)" }}>
               <TabBtn k="pulpit" label="Pulpit" icon="home" tab={tab} setTab={setTab} />
               <TabBtn k="paragony" label="Paragony" icon="receipt" tab={tab} setTab={setTab} />
               <button ref={tutFabRef} className="pa-press pa-glow" onClick={fabClick}
@@ -4344,7 +5004,7 @@ function ParagonAIInner() {
                 onMouseDown={fabDown} onMouseUp={fabUp} onMouseLeave={fabUp}
                 onContextMenu={(e) => e.preventDefault()}
                 title="Tap: skanuj · Przytrzymaj: szybki wydatek"
-                style={{ width: 58, height: 58, borderRadius: 999, background: `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})`, color: "#06251A", boxShadow: `0 10px 28px ${T.mint}55, inset 0 1.5px 0 rgba(255,255,255,.4), 0 0 0 5px ${T.mint}14`,
+                style={{ width: 58, height: 58, borderRadius: 999, background: `linear-gradient(135deg, ${T.mint}, ${T.mintDeep})`, color: "#06251A", boxShadow: `0 10px 28px ${T.mint}55, inset 0 1.5px 0 rgba(var(--ovc),.4), 0 0 0 5px ${T.mint}14`,
                   border: "none", cursor: "pointer", margin: "-30px 8px 0", flexShrink: 0,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   userSelect: "none", WebkitUserSelect: "none", touchAction: "manipulation", position: "relative" }}>
@@ -4358,7 +5018,7 @@ function ParagonAIInner() {
         )}
 
         {toast && (
-          <div className="pa-pop pa-body" style={{ position: "absolute", bottom: 96, left: "50%", transform: "translateX(-50%)", background: "linear-gradient(135deg, rgba(26,48,38,.97), rgba(16,32,25,.97))", backdropFilter: "blur(10px)", border: `1px solid ${T.mint}45`, color: T.text, borderRadius: 999, padding: "11px 20px", fontSize: 12.5, fontWeight: 600, boxShadow: `0 14px 38px rgba(0,0,0,.5), 0 0 22px ${T.mint}22`, zIndex: 70, whiteSpace: "nowrap", maxWidth: "88%", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <div className="pa-pop pa-body" style={{ position: "absolute", bottom: 96, left: "50%", transform: "translateX(-50%)", background: "linear-gradient(135deg, rgba(26,48,38,.97), rgba(16,32,25,.97))", backdropFilter: "blur(10px)", border: `1px solid ${T.mint}45`, color: T.text, borderRadius: 999, padding: "11px 20px", fontSize: 12.5, fontWeight: 600, boxShadow: `0 14px 38px var(--sh2), 0 0 22px ${T.mint}22`, zIndex: 70, whiteSpace: "nowrap", maxWidth: "88%", overflow: "hidden", textOverflow: "ellipsis" }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               <span style={{ width: 17, height: 17, borderRadius: 999, background: `${T.mint}22`, border: `1px solid ${T.mint}55`, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 9.5, color: T.mint, flexShrink: 0 }}>✓</span>
               {toast}
@@ -4374,7 +5034,7 @@ function ParagonAIInner() {
                 items: [{ id: uid(), name: "Wydatek ręczny", qty: 1, total_price: d.amount, category: d.category }],
                 createdAt: Date.now(), manual: true, memberId: members[0]?.id,
               };
-              setReceipts((rs) => [rec, ...rs]);
+              setReceipts((rs) => [rec, ...rs.filter((r) => !r.sample)]);
               setMonth(monthKey(d.date) || nowMonth());
               setQuickAdd(false);
               showToast("Wydatek dodany ✓");
@@ -4386,17 +5046,17 @@ function ParagonAIInner() {
           <div className="pa-rise" role="button" onClick={() => { setAchPopup(null); setView({ name: "achievements" }); }}
             style={{ position: "absolute", top: "calc(14px + env(safe-area-inset-top, 0px))", left: 14, right: 14, zIndex: 72, cursor: "pointer",
               background: "linear-gradient(140deg, #2A2412, #1A1608)", border: `1px solid ${T.gold}55`, borderRadius: 18, padding: "13px 15px",
-              boxShadow: `0 18px 50px rgba(0,0,0,.55), 0 0 26px ${T.gold}25`, display: "flex", alignItems: "center", gap: 12 }}>
+              boxShadow: `0 18px 50px var(--sh2), 0 0 26px ${T.gold}25`, display: "flex", alignItems: "center", gap: 12 }}>
             <div className="pa-glow" style={{ width: 44, height: 44, borderRadius: 14, background: `linear-gradient(135deg, ${T.gold}, #B2945A)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 21, flexShrink: 0 }}>{achPopup.emoji}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className="pa-mono" style={{ fontSize: 8.5, letterSpacing: ".14em", color: T.gold }}>NOWE OSIĄGNIĘCIE</div>
               <div className="pa-display" style={{ fontSize: 14.5, fontWeight: 700, color: "#fff", marginTop: 2 }}>{achPopup.title}</div>
-              <div className="pa-body" style={{ fontSize: 10.5, color: "rgba(255,255,255,.65)", marginTop: 1 }}>
+              <div className="pa-body" style={{ fontSize: 10.5, color: "rgba(var(--ovc),.65)", marginTop: 1 }}>
                 {[achPopup.reward > 0 && `+${achPopup.reward} skanów`, achPopup.xp > 0 && `+${achPopup.xp} XP`, achPopup.proDays > 0 && `+${achPopup.proDays} dni Pro`].filter(Boolean).join(" · ") ? `Dotknij, by odebrać: ${[achPopup.reward > 0 && `+${achPopup.reward} skanów 🎁`, achPopup.xp > 0 && `+${achPopup.xp} XP ⚡`, achPopup.proDays > 0 && `+${achPopup.proDays} dni Pro 👑`].filter(Boolean).join(" · ")}` : "Dotknij, by zobaczyć odznakę"}
               </div>
             </div>
             <button className="pa-press" onClick={(e) => { e.stopPropagation(); setAchPopup(null); }}
-              style={{ width: 26, height: 26, borderRadius: 9, border: "1px solid rgba(255,255,255,.14)", background: "rgba(255,255,255,.06)", color: "rgba(255,255,255,.6)", fontSize: 11, cursor: "pointer", flexShrink: 0 }}>✕</button>
+              style={{ width: 26, height: 26, borderRadius: 9, border: "1px solid rgba(var(--ovc),.14)", background: "var(--sf2)", color: "rgba(var(--ovc),.6)", fontSize: 11, cursor: "pointer", flexShrink: 0 }}>✕</button>
           </div>
         )}
         {celebrate && (
@@ -4423,8 +5083,8 @@ function ParagonAIInner() {
             {["✨", "⭐", "✦"].map((e, i) => (
               <span key={"s" + i} className="pa-spark" style={{ left: `${26 + i * 24}%`, top: `${24 + (i % 2) * 30}%`, fontSize: 16 + i * 4, animationDelay: `${i * 260}ms` }}>{e}</span>
             ))}
-            <div className="pa-pop" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 300, width: "100%", textAlign: "center", background: "#13241C", position: "relative", zIndex: 2,
-              border: `1px solid ${T.gold}50`, borderRadius: 24, padding: "28px 22px 22px", boxShadow: `0 30px 80px rgba(0,0,0,.6), 0 0 40px ${T.gold}22`, cursor: "default" }}>
+            <div className="pa-pop" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 300, width: "100%", textAlign: "center", background: "var(--c-surface)", position: "relative", zIndex: 2,
+              border: `1px solid ${T.gold}50`, borderRadius: 24, padding: "28px 22px 22px", boxShadow: `0 30px 80px var(--sh2), 0 0 40px ${T.gold}22`, cursor: "default" }}>
               <div style={{ position: "relative", display: "inline-block" }}>
                 <span className="pa-rays" />
                 <div className="pa-float" style={{ position: "relative", fontSize: 52, lineHeight: 1, filter: "drop-shadow(0 8px 20px rgba(216,184,120,.45))" }}>{celebrate.emoji}</div>
@@ -4518,7 +5178,7 @@ class ErrorBoundary extends Component {
         <div style={{ minHeight: "100vh", background: "#050B08", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, fontFamily: "Inter, system-ui, sans-serif" }}>
           <div style={{ maxWidth: 340, textAlign: "center" }}>
             <div style={{ fontSize: 42, marginBottom: 14 }}>🛠️</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#EAF2ED", marginBottom: 8 }}>Coś poszło nie tak</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#EDF3EF", marginBottom: 8 }}>Coś poszło nie tak</div>
             <div style={{ fontSize: 13.5, color: "#9DB0A6", lineHeight: 1.6, marginBottom: 22 }}>
               Aplikacja napotkała nieoczekiwany błąd. Odśwież — Twoje dane zwykle pozostają zapisane. Jeśli błąd wraca, użyj przycisku poniżej, aby wyczyścić pamięć aplikacji.
             </div>
