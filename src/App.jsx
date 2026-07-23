@@ -600,10 +600,25 @@ KRYTYCZNE ZASADY DOT. RABATÓW I OPUSTÓW (najczęstszy błąd):
 - "total" to ostateczna kwota DO ZAPŁATY (linia SUMA/RAZEM/PLN) — po wszystkich rabatach.
 - Suma wszystkich items.total_price MUSI być równa polu total (± 0,01 zł). To jest test poprawności — jeśli się nie zgadza, znalazłeś rabat którego nie odjąłeś.
 
+ILOŚCI I CENY JEDNOSTKOWE (drugi najczęstszy błąd):
+- Polskie paragony zapisują ilość wzorem: "ILOŚĆ x CENA_JEDN  WARTOŚĆ", np. "2 x 4,99 9,98", "2 * 4,99 9,98", "3 szt. x 2,50 7,50" — czasem w tej samej linii co nazwa, czasem w linii PONIŻEJ nazwy.
+- Gdy widzisz taki wzór: "qty" = ilość (2, 3...), a "total_price" = WARTOŚĆ ŁĄCZNA (ostatnia kwota w linii), NIE cena jednostkowa.
+- Przykład: "CHIPSY CEBULOWE 2 x 4,99 9,98" → {"name":"Chipsy cebulowe","qty":2,"total_price":9.98}. NIGDY {"qty":1,"total_price":9.98} — to fałszuje cenę sztuki.
+- Test: total_price ≈ qty × cena jednostkowa (± 0,01). Jeśli nie pasuje — źle odczytałeś ilość.
+- Produkty na wagę ("0,456 kg x 12,99  5,93") → qty:1, total_price:5.93, wagę dopisz w nazwie: "Pomidory 0,456 kg".
+- Gdy nie ma wzoru ilości, przyjmij qty:1.
+
+NAZWY PRODUKTÓW — ZAWSZE CZYŚĆ I TŁUMACZ NA LUDZKI JĘZYK:
+- Paragony zawierają kody i prefiksy sklepowe: "C_MC CROISSANT MAŚL", "D_CHIPSY KZCB 150G", "PN_MLEKO UHT32". Prefiksy typu C_, D_, PN_, MC_, XX_ oraz kody magazynowe (KZCB, #123, /45) USUŃ.
+- Rozwiń skróty po polsku: "MAŚL." → "maślany", "ŁAC." → "Łaciate", "CEBUL"/"CEB." → "cebulowe", "POM." → "pomidorowy", "TRUSK." → "truskawkowy".
+- Pisz naturalnie: pierwsza litera wielka, reszta małe ("CROISSANT MAŚLANY 60G" → "Croissant maślany 60g").
+- Przykłady: "C_MC CROISSANT MAŚL" → "Croissant maślany"; "D_CHIPSY KZCB CEBUL 150G" → "Chipsy cebulowe 150g"; "SOK POM.1L TYMBARK" → "Sok pomidorowy 1l Tymbark".
+- Gramaturę (150g, 1l, 0,5l) ZOSTAW — pomaga rozpoznać produkt. Kody i prefiksy USUŃ.
+- Jeśli po czyszczeniu nazwa nadal jest zagadkowa, wybierz najbardziej prawdopodobny polski produkt spożywczy pasujący do liter i ceny.
+
 POZOSTAŁE ZASADY:
 - Czytaj WSZYSTKIE pozycje, nawet przy słabej jakości zdjęcia.
 - Pomiń linie: PTU, SUMA PTU, NIP, numery systemowe, "Niefiskalny", "Reszta", reklamy, "Karta lojalnościowa".
-- Rozwiń skróty ("MLEKO ŁAC.UHT 3,2%" → "Mleko Łaciate UHT 3,2%").
 - Kwoty z przecinkiem zamień na kropkę.
 - Jeśli daty nie widać, ustaw "date": null.
 - Jeśli na zdjęciu NIE ma paragonu/rachunku, zwróć dokładnie {"error":"not_receipt"}.`;
@@ -646,6 +661,7 @@ POZOSTAŁE ZASADY:
   if (!parsed) throw new Error("parse");
   if (parsed.error === "not_receipt") throw new Error("not_receipt");
   if (!Array.isArray(parsed.items)) parsed.items = [];
+  parsed.items = parsed.items.map((it) => fixItemQty({ ...it, name: cleanItemName(it.name) }));
 
   // Post-walidacja rabatów: jeśli model nie odjął rabatów, suma items > total.
   // Dorzucamy pozycję "Rabat" z różnicą, żeby końcówka zgadzała się z paragonem.
@@ -656,6 +672,50 @@ POZOSTAŁE ZASADY:
     parsed.items.push({ name: "Rabat / opust", qty: 1, total_price: diff, category: "inne" });
   }
   return parsed;
+}
+
+/* ---------- czyszczenie pozycji ze skanera (siatka bezpieczeństwa po AI) ---------- */
+const NAME_ABBR = [
+  [/(^|\s)(maśl|masl)\.?(?=\s|$)/gi, "$1maślany"], [/(^|\s)(łac|lac)\.?(?=\s|$)/gi, "$1Łaciate"],
+  [/(^|\s)cebul\.?(?=\s|$)/gi, "$1cebulowe"], [/(^|\s)pom\.?(?=\s|$)/gi, "$1pomidorowy"],
+  [/(^|\s)trusk\.?(?=\s|$)/gi, "$1truskawkowy"], [/(^|\s)czek\.?(?=\s|$)/gi, "$1czekoladowy"],
+  [/(^|\s)natur\.?(?=\s|$)/gi, "$1naturalny"], [/(^|\s)bezgl\.?(?=\s|$)/gi, "$1bezglutenowy"],
+];
+const NAME_KEEP = /^(UHT|BIO|EKO|MAX|MIX|XXL|ZERO|LIGHT|II|III|IV)$/;
+const HAS_VOWEL = /[AEIOUYĄĘÓaeiouyąęó]/;
+export function cleanItemName(raw) {
+  let n = String(raw || "").trim().replace(/\s{2,}/g, " ");
+  if (!n) return "Produkt";
+  n = n.replace(/^[A-ZŻŹĆŃŁ]{1,3}[_-](?=\S)/, "");                       // prefiks sklepowy: C_, D_, PN-
+  n = n.replace(/[#/]\d+\b/g, "");                                       // kody #123, /45
+  let toks = n.split(/\s+/).filter(Boolean);
+  // wiodące krótkie zbitki bez samogłosek (MC, PN) — resztki prefiksów
+  while (toks.length > 1 && toks[0].length <= 3 && /^[A-ZŻŹĆŃŁ]+$/.test(toks[0]) && !HAS_VOWEL.test(toks[0])) toks.shift();
+  // kody magazynowe w środku: wersaliki ≥3 liter BEZ samogłosek (KZCB), nie na liście ochronnej
+  toks = toks.filter((t) => !(t.length >= 3 && /^[A-ZŻŹĆŃŁ]+$/.test(t) && !HAS_VOWEL.test(t) && !NAME_KEEP.test(t)));
+  n = toks.join(" ").trim();
+  if (!n) return "Produkt";
+  // WERSALIKI → zdaniowo, z ochroną znanych skrótowców i gramatury
+  const letters = n.replace(/[^A-Za-zŻŹĆŃŁÓĘĄŚżźćńłóęąś]/g, "");
+  if (letters.length > 2 && letters === letters.toUpperCase()) {
+    n = n.split(" ").map((t) => (NAME_KEEP.test(t) ? t : t.toLowerCase())).join(" ");
+    n = n.charAt(0).toUpperCase() + n.slice(1);
+  }
+  NAME_ABBR.forEach(([re, to]) => { n = n.replace(re, to); });
+  return n.replace(/\s{2,}/g, " ").trim() || "Produkt";
+}
+export function fixItemQty(it) {
+  const qty = Math.max(1, Math.round(Number(it.qty) || 1));
+  const unit = Number(it.unit_price) || 0;
+  const total = Number(it.total_price) || 0;
+  // AI podało cenę jednostkową zamiast łącznej → przelicz
+  if (qty > 1 && unit > 0 && Math.abs(total - unit) < 0.01) return { ...it, qty, total_price: Math.round(unit * qty * 100) / 100 };
+  // AI podało qty:1 ale unit*coś = total (2–9 szt.) → odzyskaj ilość
+  if (qty === 1 && unit > 0 && total > unit + 0.01) {
+    const k = Math.round(total / unit);
+    if (k >= 2 && k <= 9 && Math.abs(unit * k - total) <= 0.02) return { ...it, qty: k, total_price: total };
+  }
+  return { ...it, qty, total_price: total };
 }
 
 /* ---------- eksport CSV ---------- */
@@ -4833,8 +4893,21 @@ function ParagonAIInner() {
                     onBlur={(e) => updateItem("draft", i.id, { total_price: Math.round((Number(String(e.target.value).replace(",", ".")) || 0) * 100) / 100 })}
                     className="pa-mono" style={{ ...input, width: 86, textAlign: "right", fontSize: 13 }} />
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 9 }}>
-                  <CategoryChip slug={i.category} onClick={() => setSheet({ itemId: i.id, context: "draft" })} />
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 9, gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                    <CategoryChip slug={i.category} onClick={() => setSheet({ itemId: i.id, context: "draft" })} />
+                    <div style={{ display: "flex", alignItems: "center", background: "var(--sf2)", border: `1px solid ${T.glassBorderSoft}`, borderRadius: 999, padding: "2px 3px" }}>
+                      <button className="pa-press" onClick={() => { const q = Math.max(1, (Number(i.qty) || 1) - 1);
+                          const per = (Number(i.total_price) || 0) / (Number(i.qty) || 1);
+                          updateItem("draft", i.id, { qty: q, total_price: Math.round(per * q * 100) / 100 }); }}
+                        style={{ width: 22, height: 22, borderRadius: 999, border: "none", background: "none", color: T.sub, fontSize: 13, cursor: "pointer" }}>−</button>
+                      <span className="pa-mono" style={{ fontSize: 11, fontWeight: 700, color: (Number(i.qty) || 1) > 1 ? T.mint : T.sub, minWidth: 26, textAlign: "center" }}>{Number(i.qty) || 1} ×</span>
+                      <button className="pa-press" onClick={() => { const q = Math.min(99, (Number(i.qty) || 1) + 1);
+                          const per = (Number(i.total_price) || 0) / (Number(i.qty) || 1);
+                          updateItem("draft", i.id, { qty: q, total_price: Math.round(per * q * 100) / 100 }); }}
+                        style={{ width: 22, height: 22, borderRadius: 999, border: "none", background: "none", color: T.sub, fontSize: 13, cursor: "pointer" }}>+</button>
+                    </div>
+                  </div>
                   <button className="pa-body pa-press" onClick={() => setDraft((d) => ({ ...d, items: d.items.filter((x) => x.id !== i.id) }))}
                     style={{ background: "none", border: "none", color: T.danger, fontSize: 11.5, fontWeight: 600, cursor: "pointer", opacity: .85 }}>Usuń</button>
                 </div>
@@ -4884,7 +4957,10 @@ function ParagonAIInner() {
                 {r.items.map((i) => (
                   <div key={i.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "7px 0" }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className="pa-mono" style={{ fontSize: 12.5, color: T.paperInk, fontWeight: 500, lineHeight: 1.35 }}>{i.name}</div>
+                      <div className="pa-mono" style={{ fontSize: 12.5, color: T.paperInk, fontWeight: 500, lineHeight: 1.35 }}>
+                        {(Number(i.qty) || 1) > 1 && <span style={{ color: "#0E7A5A", fontWeight: 700 }}>{i.qty} × </span>}{i.name}
+                        {(Number(i.qty) || 1) > 1 && <span style={{ color: T.paperSub, fontSize: 10.5 }}> · {zl(i.total_price / i.qty)}/szt.</span>}
+                      </div>
                       <div style={{ marginTop: 5 }}>
                         <CategoryChip light slug={i.category} onClick={() => setSheet({ itemId: i.id, context: "details", receiptId: r.id })} />
                       </div>
